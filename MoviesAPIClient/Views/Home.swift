@@ -8,10 +8,49 @@
 import SwiftUI
 
 struct Home: View {
+
+    @State private var searchText: String = ""
+    @Environment(TMDBManager.self) var tmdbManager
+
+    @State private var error: String?
+    @State private var showError: Bool = false
+
+    @State private var searchTask: Task<Void, Never>?
+    @State private var isSearching: Bool = false
+
     var body: some View {
         ScrollView {
+            if tmdbManager.searchResults.isEmpty {
 
+            } else {
+                SearchResultsView(searchResults: tmdbManager.searchResults)
+            }
+            /// Show Home Content
+        }
+        .alert(isPresented: $showError) {
+            Alert(
+                title: Text("Error"),
+                message: Text("\(error, default: "Unknown Error")")
+            )
         }
         .navigationTitle("Home")
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
+        .onSubmit(of: .search) {
+            search()
+        }
+    }
+
+    private func search() {
+        if isSearching { return }
+        searchTask = Task {
+            isSearching = true
+            defer { isSearching = false }
+            do {
+                try await tmdbManager.search(searchText)
+            } catch {
+                self.error = error.localizedDescription
+                self.showError = true
+            }
+        }
     }
 }

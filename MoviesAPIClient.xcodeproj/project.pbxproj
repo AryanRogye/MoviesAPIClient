@@ -258,6 +258,8 @@
 /* Begin XCBuildConfiguration section */
 		9B6EBDA93058AC960058478C /* Debug configuration for PBXProject "MoviesAPIClient" */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 9B6EBD8E3058AC940058478C /* MoviesAPIClient */;
+			baseConfigurationReferenceRelativePath = Config.xcconfig;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -320,6 +322,8 @@
 		};
 		9B6EBDAA3058AC960058478C /* Release configuration for PBXProject "MoviesAPIClient" */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 9B6EBD8E3058AC940058478C /* MoviesAPIClient */;
+			baseConfigurationReferenceRelativePath = Config.xcconfig;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
