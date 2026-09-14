@@ -44,6 +44,58 @@ final class TMDBManager {
         self.token = token
     }
 
+    public func clearSearchResults() {
+        self.searchResults = []
+    }
+
+    public func seasonInfo(for id: Int, seasonNumber: Int) async throws -> SeasonInfo {
+        let url = URL(string: "https://api.themoviedb.org/3/tv/\(id)/season/\(seasonNumber)")!
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: true)!
+        let queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "language", value: "en-US"),
+        ]
+        components.queryItems = components.queryItems.map { $0 + queryItems } ?? queryItems
+
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 10
+        request.allHTTPHeaderFields = [
+            "accept": "application/json",
+            "Authorization": "Bearer \(token)"
+        ]
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+
+        return try decoder.decode(SeasonInfo.self, from: data)
+    }
+
+    public func infoOnTV(for id: Int) async throws -> TVShow {
+        let url = URL(string: "https://api.themoviedb.org/3/tv/\(id)")!
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: true)!
+        let queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "language", value: "en-US"),
+        ]
+        components.queryItems = components.queryItems.map { $0 + queryItems } ?? queryItems
+
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 10
+        request.allHTTPHeaderFields = [
+            "accept": "application/json",
+            "Authorization": "Bearer \(token)"
+        ]
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+
+        return try decoder.decode(TVShow.self, from: data)
+    }
+
     public func search(_ text: String) async throws {
         guard let url = URL(string: "https://api.themoviedb.org/3/search/multi") else {
             throw TMDBError.cantAccessSearchUrl

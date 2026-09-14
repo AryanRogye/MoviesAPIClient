@@ -13,7 +13,12 @@ struct SearchResultsView: View {
 
     var body: some View {
         ForEach(searchResults, id: \.id) { result in
-            SearchResultsRow(result: result)
+            NavigationLink {
+                WatchDetailView(result: result)
+            } label: {
+                SearchResultsRow(result: result)
+            }
+            .buttonStyle(.plain)
         }
     }
 }

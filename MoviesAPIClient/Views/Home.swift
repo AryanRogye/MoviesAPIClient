@@ -21,11 +21,10 @@ struct Home: View {
     var body: some View {
         ScrollView {
             if tmdbManager.searchResults.isEmpty {
-
+                Text("Home Screen")
             } else {
                 SearchResultsView(searchResults: tmdbManager.searchResults)
             }
-            /// Show Home Content
         }
         .alert(isPresented: $showError) {
             Alert(
@@ -33,10 +32,19 @@ struct Home: View {
                 message: Text("\(error, default: "Unknown Error")")
             )
         }
-        .navigationTitle("Home")
+        .navigationTitle(tmdbManager.searchResults.isEmpty ? "Home" : "Results")
         .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
         .onSubmit(of: .search) {
             search()
+        }
+        .toolbar {
+            if !tmdbManager.searchResults.isEmpty {
+                ToolbarItem(placement: .navigation) {
+                    Button(action: tmdbManager.clearSearchResults) {
+                        Image(systemName: "chevron.backward")
+                    }
+                }
+            }
         }
     }
 
