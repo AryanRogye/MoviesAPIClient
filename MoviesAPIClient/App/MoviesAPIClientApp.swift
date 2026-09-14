@@ -11,7 +11,12 @@ import SwiftUI
 struct MoviesAPIClientApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            Root()
         }
+#if os(macOS)
+        .windowToolbarStyle(
+            .expanded
+        )
+#endif
     }
 }
