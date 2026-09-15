@@ -27,7 +27,9 @@ struct MovieDetailView: View {
                 GeometryReader { proxy in
                     EmbeddedMovieView(url: movieUrl)
                         .id(reloadID)
-                        .frame(width: proxy.size.width - 20, height: 200)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 200)
+                        .padding(.horizontal, 10)
                 }
                 .frame(height: 200)
 #elseif os(macOS)
