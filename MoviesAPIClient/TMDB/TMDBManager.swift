@@ -10,7 +10,9 @@ import Foundation
 enum TMDBError: LocalizedError {
     case noToken
     case tokenEmpty
-    case cantAccessSearchUrl
+    case cantConstructUrl
+    case cantCreateComponents
+    case cantAccessComponentUrl
 
     var errorDescription: String? {
         switch self {
@@ -18,8 +20,12 @@ enum TMDBError: LocalizedError {
             "No Token in Info.plist"
         case .tokenEmpty:
             "Token is empty"
-        case .cantAccessSearchUrl:
-            "Can't access search url"
+        case .cantConstructUrl:
+            "Cant construct URL"
+        case .cantCreateComponents:
+            "Can't create URLComponents"
+        case .cantAccessComponentUrl:
+            "Can't access URL from URLComponents"
         }
     }
 }
@@ -49,14 +55,21 @@ final class TMDBManager {
     }
 
     public func seasonInfo(for id: Int, seasonNumber: Int) async throws -> SeasonInfo {
-        let url = URL(string: "https://api.themoviedb.org/3/tv/\(id)/season/\(seasonNumber)")!
-        var components = URLComponents(url: url, resolvingAgainstBaseURL: true)!
+        guard let url = URL(string: "https://api.themoviedb.org/3/tv/\(id)/season/\(seasonNumber)") else {
+            throw TMDBError.cantConstructUrl
+        }
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: true) else {
+            throw TMDBError.cantCreateComponents
+        }
         let queryItems: [URLQueryItem] = [
             URLQueryItem(name: "language", value: "en-US"),
         ]
         components.queryItems = components.queryItems.map { $0 + queryItems } ?? queryItems
 
-        var request = URLRequest(url: components.url!)
+        guard let componentsUrl = components.url else {
+            throw TMDBError.cantAccessComponentUrl
+        }
+        var request = URLRequest(url: componentsUrl)
         request.httpMethod = "GET"
         request.timeoutInterval = 10
         request.allHTTPHeaderFields = [
@@ -73,14 +86,23 @@ final class TMDBManager {
     }
 
     public func infoOnTV(for id: Int) async throws -> TVShow {
-        let url = URL(string: "https://api.themoviedb.org/3/tv/\(id)")!
-        var components = URLComponents(url: url, resolvingAgainstBaseURL: true)!
+        guard let url = URL(string: "https://api.themoviedb.org/3/tv/\(id)") else {
+            throw TMDBError.cantConstructUrl
+        }
+
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: true) else {
+            throw TMDBError.cantCreateComponents
+        }
+
         let queryItems: [URLQueryItem] = [
             URLQueryItem(name: "language", value: "en-US"),
         ]
         components.queryItems = components.queryItems.map { $0 + queryItems } ?? queryItems
 
-        var request = URLRequest(url: components.url!)
+        guard let componentsUrl = components.url else {
+            throw TMDBError.cantAccessComponentUrl
+        }
+        var request = URLRequest(url: componentsUrl)
         request.httpMethod = "GET"
         request.timeoutInterval = 10
         request.allHTTPHeaderFields = [
@@ -96,11 +118,14 @@ final class TMDBManager {
         return try decoder.decode(TVShow.self, from: data)
     }
 
+    /// Function to search for tv,movie,person
     public func search(_ text: String) async throws {
         guard let url = URL(string: "https://api.themoviedb.org/3/search/multi") else {
-            throw TMDBError.cantAccessSearchUrl
+            throw TMDBError.cantConstructUrl
         }
-        var components = URLComponents(url: url, resolvingAgainstBaseURL: true)!
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: true) else {
+            throw TMDBError.cantCreateComponents
+        }
         let queryItems: [URLQueryItem] = [
             URLQueryItem(name: "query", value: text),
             URLQueryItem(name: "include_adult", value: "true"),
@@ -110,7 +135,11 @@ final class TMDBManager {
 
         components.queryItems = components.queryItems.map { $0 + queryItems } ?? queryItems
 
-        var request = URLRequest(url: components.url!)
+        guard let componentsUrl = components.url else {
+            throw TMDBError.cantAccessComponentUrl
+        }
+
+        var request = URLRequest(url: componentsUrl)
         request.httpMethod = "GET"
         request.timeoutInterval = 10
         request.allHTTPHeaderFields = [

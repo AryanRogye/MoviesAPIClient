@@ -34,8 +34,17 @@ struct TVDetailView: View {
     @State private var seasonInfo: SeasonInfo?
     @State private var selectedEpisode: Episode? = nil
 
+    @State private var tvUrl: URL?
+    @State private var reloadID = UUID()
+
     var body: some View {
         ScrollView {
+            if let tvUrl {
+                EmbeddedMovieView(url: tvUrl)
+                    .id(reloadID)
+                    .frame(width: UIScreen.main.bounds.width - 20, height: 200)
+            }
+
             if let tvShow {
                 LazyVGrid(columns: seasonColumns, spacing: 16) {
                     ForEach(tvShow.seasons, id: \.id) { season in
@@ -101,6 +110,17 @@ struct TVDetailView: View {
                 loadSeason(season: newValue)
             }
         }
+        .toolbar {
+            if let tvUrl {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        reloadID = UUID()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                }
+            }
+        }
         .task {
             do {
                 tvShow = try await tmdbManager.infoOnTV(for: result.id)
@@ -113,8 +133,13 @@ struct TVDetailView: View {
 
     private func loadTVShow(season: Int, episode: Int) {
         let tmdb_show_id = result.id
-        let tmdb_season_number = season
-        let tmdb_episode_number = episode
+
+        do {
+            tvUrl = try MoviesAPILoader.loadTvShow(showId: tmdb_show_id, season: season, episode: episode)
+        } catch {
+            self.error = error.localizedDescription
+            self.showError = true
+        }
     }
 
     private func loadSeason(season: Int) {
