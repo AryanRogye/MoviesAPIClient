@@ -28,14 +28,12 @@ struct TVDetailView: View {
     @State private var tvUrl: URL?
     @State private var reloadID = UUID()
 
-    @State private var vm = EmbeddedMovieViewModel()
-
     var body: some View {
         ScrollView {
             if let tvUrl {
 #if os(iOS)
                 GeometryReader { proxy in
-                    EmbeddedMovieView(vm: vm, url: tvUrl)
+                    EmbeddedMovieView(url: tvUrl)
                         .id(reloadID)
                         .frame(width: proxy.size.width - 20, height: 200)
                 }

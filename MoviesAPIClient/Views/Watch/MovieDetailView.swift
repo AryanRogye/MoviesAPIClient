@@ -19,14 +19,13 @@ struct MovieDetailView: View {
     @State private var hasLoadedMovie: Bool = false
     @State private var reloadID = UUID()
 
-    @State private var vm = EmbeddedMovieViewModel()
 
     var body: some View {
         VStack {
             if let movieUrl {
 #if os(iOS)
                 GeometryReader { proxy in
-                    EmbeddedMovieView(vm: vm, url: movieUrl)
+                    EmbeddedMovieView(url: movieUrl)
                         .id(reloadID)
                         .frame(width: proxy.size.width - 20, height: 200)
                 }

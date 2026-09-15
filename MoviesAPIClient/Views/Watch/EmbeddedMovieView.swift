@@ -32,7 +32,7 @@ final class EmbeddedMovieViewModel {
 struct EmbeddedMovieView: View {
 
     @Environment(BlockingService.self) var blockingService
-    @Bindable var vm: EmbeddedMovieViewModel
+    @State var vm: EmbeddedMovieViewModel = .init()
     let url: URL
 
     var body: some View {
