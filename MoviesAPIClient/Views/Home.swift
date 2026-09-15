@@ -33,7 +33,7 @@ struct Home: View {
             )
         }
         .navigationTitle(tmdbManager.searchResults.isEmpty ? "Home" : "Results")
-        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
+        .searchable(text: $searchText, prompt: "Search")
         .onSubmit(of: .search) {
             search()
         }

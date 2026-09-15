@@ -10,23 +10,45 @@ import WebKit
 
 struct EmbeddedMovieView: View {
 
+    @Environment(BlockingService.self) var blockingService
     let url: URL
 
     var body: some View {
-        WebView(url: url)
+        WebView(
+            blockingService: blockingService,
+            url: url
+        )
     }
 }
 
 /// Bridges a `WKWebView` from `WebViewModel` into SwiftUI.
 struct WebView: UIViewRepresentable {
 
+    let blockingService: BlockingService
     let url: URL
 
     func makeUIView(context: Context) -> WKWebView {
-        let webView = WKWebView()
-        context.coordinator.attach(to: webView)
-        webView.load(url)
-        return webView
+
+        let config = WKWebViewConfiguration()
+        config.preferences.javaScriptCanOpenWindowsAutomatically = false
+        config.allowsInlineMediaPlayback = true
+        config.allowsPictureInPictureMediaPlayback = true
+        config.mediaTypesRequiringUserActionForPlayback = []
+        config.websiteDataStore = .default()
+
+        blockingService.attachPopupBlocking(to: config)
+
+        let wv = WKWebView(frame: .zero, configuration: config)
+        wv.allowsBackForwardNavigationGestures = false
+        wv.isOpaque = true
+        wv.layer.drawsAsynchronously = true
+        wv.layer.shouldRasterize = false
+        wv.scrollView.decelerationRate = .normal
+
+        blockingService.attachNetworkFilters(to: wv)
+        context.coordinator.attach(to: wv)
+        wv.load(url)
+        return wv
     }
 
     func updateUIView(_ uiView: WKWebView, context: Context) {}

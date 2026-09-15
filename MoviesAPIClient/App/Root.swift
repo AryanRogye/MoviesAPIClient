@@ -10,6 +10,7 @@ import SwiftUI
 struct Root: View {
 
     @State private var tmdbManager: TMDBManager?
+    @State private var blockingService = BlockingService()
 
     @State private var error: String?
     @State private var showError: Bool = false
@@ -17,10 +18,25 @@ struct Root: View {
     var body: some View {
         VStack {
             if let tmdbManager {
-                NavigationStack {
-                    Home()
+                TabView {
+                    Tab {
+                        NavigationStack {
+                            Home()
+                        }
+                    } label: {
+                        Label("Home", systemImage: "house")
+                    }
+
+                    Tab {
+                        NavigationStack {
+                            SettingsView()
+                        }
+                    } label: {
+                        Label("Settings", systemImage: "gear")
+                    }
                 }
                 .environment(tmdbManager)
+                .environment(blockingService)
             }
         }
         .alert(isPresented: $showError) {

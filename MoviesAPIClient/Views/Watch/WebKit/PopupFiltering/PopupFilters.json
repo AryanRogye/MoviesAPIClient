@@ -1,0 +1,36 @@
+{
+    "signatures": [
+        [
+            "$G$",
+            "data-onOpen",
+            "[[OUT_URL]]"
+        ],
+        [
+            "redirectthisclick.com"
+        ],
+        [
+            "linkclick.buzz"
+        ],
+        [
+            "popunder.js"
+        ],
+        [
+            "popunder.min.js"
+        ],
+        [
+            "jquery.popunder.js"
+        ],
+        [
+            "jspopunder.js"
+        ],
+        [
+            "exitpopup.js"
+        ],
+        [
+            "popup-domination"
+        ],
+        [
+            "xpopup.js"
+        ]
+    ]
+}
