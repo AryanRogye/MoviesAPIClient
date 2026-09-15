@@ -8,16 +8,61 @@
 import SwiftUI
 import WebKit
 
+@Observable
+@MainActor
+final class EmbeddedMovieViewModel {
+    private(set) var error: String?
+    var showError: Bool = false
+    var estimatedProgress: Double = 0
+    var isLoading: Bool = false
+
+    func handleLoadFailure(_ error: Error) {
+        let error = error as NSError
+        if error.domain == NSURLErrorDomain,
+           error.code == NSURLErrorCancelled {
+            return
+        }
+
+        showError = true
+        self.error = error.localizedDescription
+        return
+    }
+}
+
 struct EmbeddedMovieView: View {
 
     @Environment(BlockingService.self) var blockingService
+    @Bindable var vm: EmbeddedMovieViewModel
     let url: URL
 
     var body: some View {
         WebView(
+            vm: vm,
             blockingService: blockingService,
             url: url
         )
+        .overlay(alignment: .topLeading) {
+            loadingProgress
+        }
+    }
+
+    @ViewBuilder
+    private var loadingProgress: some View {
+        if vm.isLoading {
+            GeometryReader { geo in
+                Capsule()
+                    .fill(.yellow)
+                    .frame(
+                        width: geo.size.width * vm.estimatedProgress,
+                        height: 3
+                    )
+                    .animation(
+                        .easeInOut(duration: 0.25),
+                        value: vm.estimatedProgress
+                    )
+            }
+            .frame(height: 3)
+        }
     }
 }
 
@@ -31,7 +76,7 @@ private typealias Representable = NSViewRepresentable
 /// Bridges a `WKWebView` from `WebViewModel` into SwiftUI.
 struct WebView: Representable {
 
-
+    @Bindable var vm: EmbeddedMovieViewModel
     let blockingService: BlockingService
     let url: URL
 
@@ -88,7 +133,7 @@ struct WebView: Representable {
     #endif
 
     func makeCoordinator() -> Coordinator {
-        Coordinator()
+        Coordinator(vm: vm)
     }
 
     static func dismantleUIView(_ uiView: WKWebView, coordinator: Coordinator) {
@@ -105,14 +150,33 @@ struct WebView: Representable {
     final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
 
         private var videoFrame: WKFrameInfo?
+        private var vm: EmbeddedMovieViewModel
 
-        override init() {
+        private var kvoTokens: [NSKeyValueObservation] = []
+
+        init(vm: EmbeddedMovieViewModel) {
+            self.vm = vm
             super.init()
         }
 
         func attach(to webView: WKWebView) {
             webView.navigationDelegate = self
             webView.uiDelegate = self
+
+            kvoTokens.append(
+                webView.observe(\.isLoading, options: .new) { [weak self] _, change in
+                    guard let self else { return }
+                    let val = change.newValue ?? false
+                    Task { @MainActor in self.vm.isLoading = val }
+                }
+            )
+            kvoTokens.append(
+                webView.observe(\.estimatedProgress, options: .new) { [weak self] _, change in
+                    guard let self else { return }
+                    let val = change.newValue ?? 0
+                    Task { @MainActor in self.vm.estimatedProgress = val }
+                }
+            )
         }
 
         /// Turns user-tapped universal links into programmatic web view loads.
@@ -172,13 +236,13 @@ struct WebView: Representable {
         /// Errors
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
             Task { @MainActor in
-//                viewModel.handleLoadFailure(error)
+                vm.handleLoadFailure(error)
             }
         }
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
             Task { @MainActor in
-//                viewModel.handleLoadFailure(error)
+                vm.handleLoadFailure(error)
             }
         }
 
@@ -186,8 +250,7 @@ struct WebView: Representable {
         /// - Tag: WKNavigationDelegate_didFinishNavigation
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             Task { @MainActor in
-//                viewModel.showError = false
-//                viewModel.refreshFaviconURL()
+                vm.showError = false
             }
         }
     }

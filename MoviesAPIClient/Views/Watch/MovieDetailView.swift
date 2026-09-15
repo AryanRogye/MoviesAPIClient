@@ -9,21 +9,28 @@ import SwiftUI
 
 struct MovieDetailView: View {
 
+    @Binding var displayServer: DisplayServer
     let result: SearchResult
 
     @State private var error: String?
     @State private var showError: Bool = false
 
     @State private var movieUrl: URL?
+    @State private var hasLoadedMovie: Bool = false
     @State private var reloadID = UUID()
+
+    @State private var vm = EmbeddedMovieViewModel()
 
     var body: some View {
         VStack {
             if let movieUrl {
 #if os(iOS)
-                EmbeddedMovieView(url: movieUrl)
-                    .id(reloadID)
-                    .frame(width: UIScreen.main.bounds.width - 20, height: 200)
+                GeometryReader { proxy in
+                    EmbeddedMovieView(vm: vm, url: movieUrl)
+                        .id(reloadID)
+                        .frame(width: proxy.size.width - 20, height: 200)
+                }
+                .frame(height: 200)
 #elseif os(macOS)
                 EmbeddedMovieView(url: movieUrl)
                     .id(reloadID)
@@ -118,9 +125,25 @@ struct MovieDetailView: View {
             }
         }
         .frame(maxWidth: .infinity)
+        .onChange(of: displayServer) {
+            if hasLoadedMovie {
+                movieUrl = nil
+                reloadID = UUID()
+                loadMovie()
+            }
+        }
         .toolbar {
-            if movieUrl != nil {
-                ToolbarItem(placement: .primaryAction) {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Picker("Server", selection: $displayServer) {
+                    ForEach(DisplayServer.allCases, id: \.self) { server in
+                        Text(server.rawValue)
+                            .tag(server)
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(.primary)
+
+                if movieUrl != nil {
                     Button {
                         reloadID = UUID()
                     } label: {
@@ -139,7 +162,8 @@ struct MovieDetailView: View {
 
     private func loadMovie() {
         do {
-            movieUrl = try MoviesAPILoader.loadMovie(movieId: result.id)
+            movieUrl = try displayServer.loadMovie(movieId: result.id)
+            hasLoadedMovie = true
         } catch {
             self.error = error.localizedDescription
             self.showError = true
@@ -192,6 +216,7 @@ private struct MovieImageView: View {
     if let tmdbManager {
         NavigationStack {
             MovieDetailView(
+                displayServer: .constant(.moviesAPI),
                 result: SearchResult(
                     id: 969681,
                     mediaType: .movie,

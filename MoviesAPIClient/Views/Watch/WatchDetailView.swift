@@ -10,14 +10,14 @@ import SwiftUI
 struct WatchDetailView: View {
 
     let result: SearchResult
-
+    @AppStorage("DisplayServer") private var displayServer: DisplayServer = .moviesAPI
 
     var body: some View {
         switch result.mediaType {
         case .movie:
-            MovieDetailView(result: result)
+            MovieDetailView(displayServer: $displayServer, result: result)
         case .tv:
-            TVDetailView(result: result)
+            TVDetailView(displayServer: $displayServer, result: result)
         case .person:
             Text("Not Yet Supported")
         }

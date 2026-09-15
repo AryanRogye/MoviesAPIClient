@@ -9,6 +9,7 @@ import SwiftUI
 
 struct TVDetailView: View {
 
+    @Binding var displayServer: DisplayServer
     let result: SearchResult
     @Environment(TMDBManager.self) var tmdbManager
 
@@ -27,13 +28,18 @@ struct TVDetailView: View {
     @State private var tvUrl: URL?
     @State private var reloadID = UUID()
 
+    @State private var vm = EmbeddedMovieViewModel()
+
     var body: some View {
         ScrollView {
             if let tvUrl {
 #if os(iOS)
-                EmbeddedMovieView(url: tvUrl)
-                    .id(reloadID)
-                    .frame(width: UIScreen.main.bounds.width - 20, height: 200)
+                GeometryReader { proxy in
+                    EmbeddedMovieView(vm: vm, url: tvUrl)
+                        .id(reloadID)
+                        .frame(width: proxy.size.width - 20, height: 200)
+                }
+                .frame(height: 200)
 #elseif os(macOS)
                 EmbeddedMovieView(url: tvUrl)
                     .id(reloadID)
@@ -79,9 +85,25 @@ struct TVDetailView: View {
                 loadSeason(season: newValue)
             }
         }
+        .onChange(of: displayServer) {
+            if let selectedSeasonNumber, let selectedEpisode {
+                self.tvUrl = nil
+                reloadID = UUID()
+                loadTVShow(season: selectedSeasonNumber, episode: selectedEpisode.episodeNumber)
+            }
+        }
         .toolbar {
-            if tvUrl != nil {
-                ToolbarItem(placement: .primaryAction) {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Picker("Server", selection: $displayServer) {
+                    ForEach(DisplayServer.allCases, id: \.self) { server in
+                        Text(server.rawValue)
+                            .tag(server)
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(.primary)
+
+                if tvUrl != nil {
                     Button {
                         reloadID = UUID()
                     } label: {
@@ -104,7 +126,7 @@ struct TVDetailView: View {
         let tmdb_show_id = result.id
 
         do {
-            tvUrl = try MoviesAPILoader.loadTvShow(showId: tmdb_show_id, season: season, episode: episode)
+            tvUrl = try displayServer.loadTvShow(showId: tmdb_show_id, season: season, episode: episode)
         } catch {
             self.error = error.localizedDescription
             self.showError = true
@@ -300,6 +322,7 @@ private struct EpisodesView: View {
     if let tmdbManager {
         NavigationStack {
             TVDetailView(
+                displayServer: .constant(.moviesAPI),
                 result: SearchResult(
                     id: 38867,
                     mediaType: .tv,
