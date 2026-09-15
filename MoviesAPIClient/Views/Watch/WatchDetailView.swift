@@ -15,7 +15,7 @@ struct WatchDetailView: View {
     var body: some View {
         switch result.mediaType {
         case .movie:
-            Text("Not Yet Supported")
+            MovieDetailView(result: result)
         case .tv:
             TVDetailView(result: result)
         case .person:

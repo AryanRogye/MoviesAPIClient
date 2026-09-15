@@ -19,6 +19,19 @@ enum MoviesAPILoaderError: LocalizedError {
 }
 
 enum MoviesAPILoader {
+
+    public static func loadMovie(
+        movieId: Int
+    ) throws -> URL {
+        guard let url = URL(
+            string: "https://moviesapi.to/movie/\(movieId)"
+        ) else {
+            throw MoviesAPILoaderError.cantConstructURL
+        }
+
+        return url
+    }
+
     public static func loadTvShow(
         showId: Int,
         season: Int,

@@ -111,7 +111,7 @@ struct TVDetailView: View {
             }
         }
         .toolbar {
-            if let tvUrl {
+            if tvUrl != nil {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         reloadID = UUID()
