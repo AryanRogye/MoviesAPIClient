@@ -7,13 +7,14 @@
 
 import SwiftUI
 import SwiftData
+import SharedLogic
 
 enum LibraryFilter: String, CaseIterable {
     case all = "All"
     case tv = "TV"
     case movies = "Movies"
 
-    var mediaType: MediaType? {
+    var mediaType: KTMediaType? {
         switch self {
         case .all:
             return nil

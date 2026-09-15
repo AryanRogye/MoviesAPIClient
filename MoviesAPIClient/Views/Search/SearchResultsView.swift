@@ -7,12 +7,13 @@
 
 import SwiftUI
 import SwiftData
+import SharedLogic
 
 struct SearchResultsView: View {
 
     @Environment(\.modelContext) var modelContext
     @Query var favorites: [Favorite]
-    let searchResults: [SearchResult]
+    let searchResults: [KTSearchResult]
 
     var body: some View {
         ForEach(searchResults, id: \.id) { result in
@@ -29,7 +30,7 @@ struct SearchResultsView: View {
     }
 
     @ViewBuilder
-    private func contextMenu(result: SearchResult) -> some View {
+    private func contextMenu(result: KTSearchResult) -> some View {
         let isFavorite = isFavorite(result)
         Button {
             if isFavorite {
@@ -38,7 +39,7 @@ struct SearchResultsView: View {
                 }
             } else {
                 let favorite = Favorite(
-                    id: result.id,
+                    id: Int(result.id),
                     name: result.name ?? result.title ?? "",
                     mediaType: result.mediaType.rawValue,
                     posterPath: result.posterPath
@@ -53,7 +54,7 @@ struct SearchResultsView: View {
         }
     }
 
-    func isFavorite(_ result: SearchResult) -> Bool {
+    func isFavorite(_ result: KTSearchResult) -> Bool {
         for favorite in favorites {
             if result.id == favorite.id {
                 return true

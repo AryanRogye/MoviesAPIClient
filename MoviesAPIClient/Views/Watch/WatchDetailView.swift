@@ -6,20 +6,34 @@
 //
 
 import SwiftUI
+import SharedLogic
 
 struct WatchDetailView: View {
 
-    let result: SearchResult
-    @AppStorage("DisplayServer") private var displayServer: DisplayServer = .moviesAPI
+    let result: KTSearchResult
+    @AppStorage("DisplayServer") private var displayServerRawValue = KTDisplayServer.moviesApi.rawValue
+
+    private var displayServer: KTDisplayServer {
+        KTDisplayServer.entries.first { $0.rawValue == displayServerRawValue } ?? .moviesApi
+    }
+
+    private var displayServerBinding: Binding<KTDisplayServer> {
+        Binding(
+            get: { displayServer },
+            set: { displayServerRawValue = $0.rawValue }
+        )
+    }
 
     var body: some View {
         switch result.mediaType {
         case .movie:
-            MovieDetailView(displayServer: $displayServer, result: result)
+            MovieDetailView(displayServer: displayServerBinding, result: result)
         case .tv:
-            TVDetailView(displayServer: $displayServer, result: result)
+            TVDetailView(displayServer: displayServerBinding, result: result)
         case .person:
             Text("Not Yet Supported")
+        default:
+            Text("Unkown Media Type")
         }
     }
 }
