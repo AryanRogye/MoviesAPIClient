@@ -205,7 +205,7 @@ private struct EpisodeImageView: View {
                     .fontDesign(.serif)
                     .font(.largeTitle)
                     .fontWeight(.medium)
-                Text(result.overview)
+                Text(result.overview ?? "")
                     .foregroundStyle(.secondary)
                     .font(.subheadline)
                     .fontWeight(.medium)

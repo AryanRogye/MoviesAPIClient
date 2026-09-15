@@ -17,7 +17,7 @@ struct SearchResult: Decodable, Identifiable {
     let title: String?
     let name: String?
     let posterPath: String?
-    let overview: String
+    let overview: String?
 }
 
 struct SearchResponse: Decodable {

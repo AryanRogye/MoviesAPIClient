@@ -60,7 +60,7 @@ struct SearchResultsRow: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            Text(result.overview)
+            Text(result.overview ?? "")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .lineLimit(4)

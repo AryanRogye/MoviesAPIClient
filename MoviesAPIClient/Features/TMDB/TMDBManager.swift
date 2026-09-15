@@ -148,11 +148,16 @@ final class TMDBManager {
         ]
 
         let (data, _) = try await URLSession.shared.data(for: request)
+        print(String(decoding: data, as: UTF8.self))
 
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
 
-        let response = try decoder.decode(SearchResponse.self, from: data)
-        searchResults = response.results
+        do {
+            let response = try decoder.decode(SearchResponse.self, from: data)
+            searchResults = response.results
+        } catch {
+            print(error)
+        }
     }
 }

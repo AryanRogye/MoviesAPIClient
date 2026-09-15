@@ -92,7 +92,7 @@ struct MovieDetailView: View {
                                 .minimumScaleFactor(0.5)
                                 .lineLimit(1)
 
-                            Text(result.overview)
+                            Text(result.overview ?? "")
                                 .font(.subheadline)
                                 .foregroundStyle(.white.opacity(0.8))
                                 .lineSpacing(3)
