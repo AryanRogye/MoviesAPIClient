@@ -1,36 +1,27 @@
-This is a Kotlin Multiplatform project targeting Android, iOS.
+# MoviesAPIClient shared and Fire TV projects
 
-* [/iosApp](./iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
-  you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
+`sharedLogic` contains the Kotlin Multiplatform models, TMDB client, and display-server URL behavior used by both Apple and Android clients. `androidApp` is the native Jetpack Compose Fire TV client.
 
-* [/sharedLogic](./sharedLogic/src) is for the code that will be shared between app targets in the project.
-  The most important subfolder is [commonMain](./sharedLogic/src/commonMain/kotlin). If preferred, you
-  can add code to the platform-specific folders here too.
+## Configure TMDB
 
-* [/sharedUI](./sharedUI/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-    - [commonMain](./sharedUI/src/commonMain/kotlin) is for code that’s common for all targets.
-    - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-      For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-      the [iosMain](./sharedUI/src/iosMain/kotlin) folder would be the right place for such calls.
-      Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./sharedUI/src/jvmMain/kotlin)
-      folder is the appropriate location.
+Provide the TMDB API read-access token without committing it:
 
-### Running the apps
+```properties
+# local.properties (already ignored by Git)
+TMDB_API_READ_ACCESS_TOKEN=your_token
+```
 
-Use the run configurations provided by the run widget in your IDE's toolbar. You can also use these commands and
-options:
+Gradle user properties and the `TMDB_API_READ_ACCESS_TOKEN` environment variable are also supported.
 
-- Android app: `./gradlew :androidApp:assembleDebug`
-- iOS app: open the [/iosApp](./iosApp) directory in Xcode and run it from there.
+## Build and install
 
-### Running tests
+```shell
+./gradlew :androidApp:assembleDebug
+adb install -r androidApp/build/outputs/apk/debug/androidApp-debug.apk
+```
 
-Use the run button in your IDE's editor gutter, or run tests using Gradle tasks:
+The app declares the Leanback launcher and does not require a touchscreen. Search, tabs, favorite actions, server selection, seasons, episodes, playback, and reload controls are focusable with a Fire TV remote.
 
-- Android tests: `./gradlew :sharedUI:testAndroidHostTest :sharedLogic:testAndroidHostTest`
-- iOS tests: `./gradlew :sharedLogic:iosSimulatorArm64Test`
+## Content blocking
 
----
-
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
+Android packages the canonical `NetworkBlockingRules.json` and `PopupFilters.json` files from the existing iOS feature directory. The platform-specific implementation in `androidApp` compiles WebKit-style source rules into Android host and regular-expression matchers, intercepts matching WebView requests, blocks new windows and non-web navigation, and injects popup/DOM filtering JavaScript after navigation. It does not use WebKit APIs or compiled WebKit rule formats.

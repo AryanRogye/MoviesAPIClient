@@ -4,6 +4,7 @@
 **/build/
 xcuserdata
 !src/**/build/
+# Local SDK path and TMDB token
 local.properties
 .idea
 .DS_Store
