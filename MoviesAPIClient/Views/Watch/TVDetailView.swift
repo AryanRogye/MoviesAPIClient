@@ -15,16 +15,6 @@ struct TVDetailView: View {
     @State private var error: String?
     @State private var showError: Bool = false
 
-    let seasonColumns = [
-        GridItem(.flexible()),
-        GridItem(.flexible()),
-        GridItem(.flexible())
-    ]
-    let showColumns = [
-        GridItem(.flexible()),
-        GridItem(.flexible()),
-    ]
-
     @State private var tvShow: TVShow?
     @State private var selectedSeasonNumber: Int? = nil
 
@@ -51,54 +41,23 @@ struct TVDetailView: View {
                     .frame(height: 200)
                     .padding(.horizontal, 10)
 #endif
+            } else {
+                EpisodeImageView(
+                    result: result,
+                    tvShow: tvShow
+                )
             }
 
-            if let tvShow {
-                LazyVGrid(columns: seasonColumns, spacing: 16) {
-                    ForEach(tvShow.seasons, id: \.id) { season in
-                        Text("Season \(season.seasonNumber)")
-                            .padding(8)
-                            .background {
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .fill(selectedSeasonNumber == season.seasonNumber ? .yellow : .clear)
-                                    .overlay {
-                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                            .stroke(
-                                                .yellow,
-                                                style: .init(lineWidth: 1)
-                                            )
-                                    }
-                            }
-                            .onTapGesture {
-                                guard !isLoadingSeason else { return }
-                                selectedSeasonNumber = season.seasonNumber
-                            }
-                    }
-                }
-            }
+            SeasonsView(
+                tvShow: tvShow,
+                isLoadingSeason: isLoadingSeason,
+                selectedSeasonNumber: $selectedSeasonNumber
+            )
 
-            if let seasonInfo {
-                LazyVGrid(columns: showColumns, spacing: 16) {
-                    ForEach(seasonInfo.episodes, id: \.id)  { episode in
-                        Text("Episode \(episode.episodeNumber)")
-                            .padding(8)
-                            .background {
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .fill(selectedEpisode == episode ? .yellow : .clear)
-                                    .overlay {
-                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                            .stroke(
-                                                .yellow,
-                                                style: .init(lineWidth: 1)
-                                            )
-                                    }
-                            }
-                            .onTapGesture {
-                                selectedEpisode = episode
-                            }
-                    }
-                }
-            }
+            EpisodesView(
+                seasonInfo: seasonInfo,
+                selectedEpisode: $selectedEpisode
+            )
         }
         .alert(isPresented: $showError) {
             Alert(
@@ -108,6 +67,8 @@ struct TVDetailView: View {
         }
         .onChange(of: selectedEpisode) { _, newValue in
             if let newValue, let selectedSeasonNumber {
+                self.tvUrl = nil
+                reloadID = UUID()
                 loadTVShow(season: selectedSeasonNumber, episode: newValue.episodeNumber)
             }
         }
@@ -162,5 +123,201 @@ struct TVDetailView: View {
                 self.showError = true
             }
         }
+    }
+}
+
+private struct EpisodeImageView: View {
+
+    let result: SearchResult
+    let tvShow: TVShow?
+
+    var imagePath: String? {
+        tvShow?.backdropPath ?? result.posterPath
+    }
+
+    var body: some View {
+        Group {
+            if let posterPath = imagePath,
+               let url = URL(
+                string: "https://image.tmdb.org/t/p/w500\(posterPath)"
+               ) {
+                AsyncImage(url: url) { image in
+                    image
+                        .resizable()
+                        .scaledToFill()
+                } placeholder: {
+                    ProgressView()
+                }
+                .frame(maxWidth: .infinity)
+                .clipped()
+            } else {
+                ZStack {
+                    Rectangle()
+                        .fill(.quaternary)
+
+                    Image(systemName: "photo")
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 200)
+                .clipped()
+            }
+        }
+        .overlay {
+            LinearGradient(
+                colors: [
+                    .clear,
+                    .clear,
+                    .black.opacity(0.15),
+                    .black.opacity(0.35),
+                    .black.opacity(0.9)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .overlay(alignment: .bottomLeading) {
+            VStack(alignment: .leading) {
+                Text(result.name ?? "")
+                    .fontDesign(.serif)
+                    .font(.largeTitle)
+                    .fontWeight(.medium)
+                Text(result.overview)
+                    .foregroundStyle(.secondary)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .lineLimit(2)
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 10)
+        }
+    }
+}
+
+private struct SeasonsView: View {
+
+    let tvShow: TVShow?
+    let isLoadingSeason: Bool
+    @Binding var selectedSeasonNumber: Int?
+
+    let columns = [
+        GridItem(.flexible()),
+        GridItem(.flexible()),
+        GridItem(.flexible())
+    ]
+
+    var body: some View {
+        if let tvShow {
+            VStack(alignment: .leading) {
+                Text("Seasons")
+                    .font(.title2)
+                    .fontWeight(.bold)
+
+                LazyVGrid(columns: columns, spacing: 16) {
+                    ForEach(tvShow.seasons, id: \.id) { season in
+                        Text("Season \(season.seasonNumber)")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(
+                                selectedSeasonNumber == season.seasonNumber
+                                ? .primary
+                                : .secondary
+                            )
+                            .frame(maxWidth: .infinity)
+                            .padding(8)
+                            .background {
+                                Capsule()
+                                    .fill(
+                                        selectedSeasonNumber == season.seasonNumber
+                                        ? .white.opacity(0.16)
+                                        : .white.opacity(0.06)
+                                    )
+                            }
+                            .onTapGesture {
+                                guard !isLoadingSeason else { return }
+                                selectedSeasonNumber = season.seasonNumber
+                            }
+                    }
+                }
+            }
+            .padding(.horizontal)
+            .padding(.top, 20)
+        }
+    }
+}
+
+private struct EpisodesView: View {
+
+    let seasonInfo: SeasonInfo?
+    @Binding var selectedEpisode: Episode?
+
+    let columns = [
+        GridItem(.flexible()),
+        GridItem(.flexible()),
+    ]
+
+    var body: some View {
+        if let seasonInfo {
+            VStack(alignment: .leading) {
+                Text("Episodes")
+                    .font(.title2)
+                    .fontWeight(.bold)
+
+                LazyVGrid(columns: columns, spacing: 16) {
+                    ForEach(seasonInfo.episodes, id: \.id)  { episode in
+                        Text("Episode \(episode.episodeNumber)")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(
+                                selectedEpisode == episode
+                                ? .primary
+                                : .secondary
+                            )
+                            .frame(maxWidth: .infinity)
+                            .padding(8)
+                            .background {
+                                Capsule()
+                                    .fill(
+                                        selectedEpisode == episode
+                                        ? .white.opacity(0.16)
+                                        : .white.opacity(0.06)
+                                    )
+                            }
+                            .onTapGesture {
+                                selectedEpisode = episode
+                            }
+                    }
+                }
+            }
+            .padding(.horizontal)
+            .padding(.top, 20)
+        }
+    }
+}
+
+#Preview {
+    @Previewable @State var tmdbManager: TMDBManager?
+
+    if let tmdbManager {
+        NavigationStack {
+            TVDetailView(
+                result: SearchResult(
+                    id: 38867,
+                    mediaType: .tv,
+                    title: nil,
+                    name: "Lab Rats",
+                    posterPath: "/lcQMvn9ZptPd3dxn0a17viRfi7Y.jpg",
+                    overview: """
+            Leo is an ordinary teenager who has moved into a high-tech "smart" house with his mother, inventor stepfather and Eddy, the computer that runs the house. Leo's life becomes less ordinary when, one day, he discovers a secret underground lab that houses three experiments: superhuman teenagers. The trio -- Adam, the strong one, Bree, the fast one and Chase, the smart one -- convinces Leo and his parents to let them leave their lab and join Leo at school, where they try to fit in while having to manage their unpredictable bionic strengths. As Leo figures out a way to keep his new pals' bionic abilities a secret, they help him build self-confidence.
+            """
+                )
+            )
+            .environment(tmdbManager)
+            .environment(BlockingService())
+        }
+    } else {
+        ProgressView()
+            .task {
+                tmdbManager = try? .init()
+            }
     }
 }

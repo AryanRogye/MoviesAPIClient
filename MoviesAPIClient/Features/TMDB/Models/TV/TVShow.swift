@@ -11,6 +11,7 @@ struct TVShow: Decodable {
     let id: Int
     let name: String
     let overview: String
+    let backdropPath: String?
     let numberOfEpisodes: Int
     let numberOfSeasons: Int
     let seasons: [Season]

@@ -13,6 +13,7 @@ struct MoviesAPIClientApp: App {
     var body: some Scene {
         WindowGroup {
             Root()
+                .preferredColorScheme(.dark)
         }
         .modelContainer(for: [Favorite.self])
 #if os(macOS)
