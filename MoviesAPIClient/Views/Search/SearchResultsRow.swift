@@ -6,9 +6,10 @@
 //
 
 import SwiftUI
+import SharedLogic
 
 struct SearchResultsRow: View {
-    let result: SearchResult
+    let result: KTSearchResult
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {

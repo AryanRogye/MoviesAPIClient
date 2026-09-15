@@ -6,24 +6,25 @@
 //
 
 import SwiftUI
+import SharedLogic
 
 struct TVDetailView: View {
 
-    @Binding var displayServer: DisplayServer
-    let result: SearchResult
+    @Binding var displayServer: KTDisplayServer
+    let result: KTSearchResult
     @Environment(TMDBManager.self) var tmdbManager
 
     @State private var error: String?
     @State private var showError: Bool = false
 
-    @State private var tvShow: TVShow?
+    @State private var tvShow: KTTVShow?
     @State private var selectedSeasonNumber: Int? = nil
 
     @State private var loadSeasonTask: Task<Void, Never>?
     @State private var isLoadingSeason = false
 
-    @State private var seasonInfo: SeasonInfo?
-    @State private var selectedEpisode: Episode? = nil
+    @State private var seasonInfo: KTSeasonInfo?
+    @State private var selectedEpisode: KTEpisode? = nil
 
     @State private var tvUrl: URL?
     @State private var reloadID = UUID()
@@ -75,7 +76,7 @@ struct TVDetailView: View {
             if let newValue, let selectedSeasonNumber {
                 self.tvUrl = nil
                 reloadID = UUID()
-                loadTVShow(season: selectedSeasonNumber, episode: newValue.episodeNumber)
+                loadTVShow(season: selectedSeasonNumber, episode: Int(newValue.episodeNumber))
             }
         }
         .onChange(of: selectedSeasonNumber) { _, newValue in
@@ -89,13 +90,13 @@ struct TVDetailView: View {
             if let selectedSeasonNumber, let selectedEpisode {
                 self.tvUrl = nil
                 reloadID = UUID()
-                loadTVShow(season: selectedSeasonNumber, episode: selectedEpisode.episodeNumber)
+                loadTVShow(season: selectedSeasonNumber, episode: Int(selectedEpisode.episodeNumber))
             }
         }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Picker("Server", selection: $displayServer) {
-                    ForEach(DisplayServer.allCases, id: \.self) { server in
+                    ForEach(KTDisplayServer.entries, id: \.self) { server in
                         Text(server.rawValue)
                             .tag(server)
                     }
@@ -114,7 +115,7 @@ struct TVDetailView: View {
         }
         .task {
             do {
-                tvShow = try await tmdbManager.infoOnTV(for: result.id)
+                tvShow = try await tmdbManager.infoOnTV(for: Int(result.id))
             } catch {
                 self.error = error.localizedDescription
                 self.showError = true
@@ -126,7 +127,11 @@ struct TVDetailView: View {
         let tmdb_show_id = result.id
 
         do {
-            tvUrl = try displayServer.loadTvShow(showId: tmdb_show_id, season: season, episode: episode)
+            let tvUrlString = displayServer.loadTvShow(showId: tmdb_show_id, season: Int32(season), episode: Int32(episode))
+            guard let url = URL(string: tvUrlString) else {
+                throw DisplayServerError.cantConstructURL
+            }
+            self.tvUrl = url
         } catch {
             self.error = error.localizedDescription
             self.showError = true
@@ -139,7 +144,7 @@ struct TVDetailView: View {
             isLoadingSeason = true
             defer { isLoadingSeason = false }
             do {
-                seasonInfo = try await tmdbManager.seasonInfo(for: result.id, seasonNumber: season)
+                seasonInfo = try await tmdbManager.seasonInfo(for: Int(result.id), seasonNumber: season)
             } catch {
                 self.error = error.localizedDescription
                 self.showError = true
@@ -150,8 +155,8 @@ struct TVDetailView: View {
 
 private struct EpisodeImageView: View {
 
-    let result: SearchResult
-    let tvShow: TVShow?
+    let result: KTSearchResult
+    let tvShow: KTTVShow?
 
     var imagePath: String? {
         tvShow?.backdropPath ?? result.posterPath
@@ -219,7 +224,7 @@ private struct EpisodeImageView: View {
 
 private struct SeasonsView: View {
 
-    let tvShow: TVShow?
+    let tvShow: KTTVShow?
     let isLoadingSeason: Bool
     @Binding var selectedSeasonNumber: Int?
 
@@ -241,7 +246,7 @@ private struct SeasonsView: View {
                         Text("Season \(season.seasonNumber)")
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(
-                                selectedSeasonNumber == season.seasonNumber
+                                selectedSeasonNumber == Int(season.seasonNumber)
                                 ? .primary
                                 : .secondary
                             )
@@ -250,14 +255,14 @@ private struct SeasonsView: View {
                             .background {
                                 Capsule()
                                     .fill(
-                                        selectedSeasonNumber == season.seasonNumber
+                                        selectedSeasonNumber == Int(season.seasonNumber)
                                         ? .white.opacity(0.16)
                                         : .white.opacity(0.06)
                                     )
                             }
                             .onTapGesture {
                                 guard !isLoadingSeason else { return }
-                                selectedSeasonNumber = season.seasonNumber
+                                selectedSeasonNumber = Int(season.seasonNumber)
                             }
                     }
                 }
@@ -270,8 +275,8 @@ private struct SeasonsView: View {
 
 private struct EpisodesView: View {
 
-    let seasonInfo: SeasonInfo?
-    @Binding var selectedEpisode: Episode?
+    let seasonInfo: KTSeasonInfo?
+    @Binding var selectedEpisode: KTEpisode?
 
     let columns = [
         GridItem(.flexible()),
@@ -322,8 +327,8 @@ private struct EpisodesView: View {
     if let tmdbManager {
         NavigationStack {
             TVDetailView(
-                displayServer: .constant(.moviesAPI),
-                result: SearchResult(
+                displayServer: .constant(.moviesApi),
+                result: KTSearchResult(
                     id: 38867,
                     mediaType: .tv,
                     title: nil,

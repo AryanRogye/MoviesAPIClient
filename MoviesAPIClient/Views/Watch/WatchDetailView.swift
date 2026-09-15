@@ -6,11 +6,12 @@
 //
 
 import SwiftUI
+import SharedLogic
 
 struct WatchDetailView: View {
 
-    let result: SearchResult
-    @AppStorage("DisplayServer") private var displayServer: DisplayServer = .moviesAPI
+    let result: KTSearchResult
+    @State private var displayServer: KTDisplayServer = .moviesApi
 
     var body: some View {
         switch result.mediaType {
@@ -20,6 +21,8 @@ struct WatchDetailView: View {
             TVDetailView(displayServer: $displayServer, result: result)
         case .person:
             Text("Not Yet Supported")
+        default:
+            Text("Unkown Media Type")
         }
     }
 }

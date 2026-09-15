@@ -6,11 +6,12 @@
 //
 
 import SwiftUI
+import SharedLogic
 
 struct MovieDetailView: View {
 
-    @Binding var displayServer: DisplayServer
-    let result: SearchResult
+    @Binding var displayServer: KTDisplayServer
+    let result: KTSearchResult
 
     @State private var error: String?
     @State private var showError: Bool = false
@@ -136,7 +137,7 @@ struct MovieDetailView: View {
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Picker("Server", selection: $displayServer) {
-                    ForEach(DisplayServer.allCases, id: \.self) { server in
+                    ForEach(KTDisplayServer.entries, id: \.self) { server in
                         Text(server.rawValue)
                             .tag(server)
                     }
@@ -163,7 +164,11 @@ struct MovieDetailView: View {
 
     private func loadMovie() {
         do {
-            movieUrl = try displayServer.loadMovie(movieId: result.id)
+            let movieUrlString = displayServer.loadMovie(movieId: result.id)
+            guard let url = URL(string: movieUrlString) else {
+                throw DisplayServerError.cantConstructURL
+            }
+            movieUrl = url
             hasLoadedMovie = true
         } catch {
             self.error = error.localizedDescription
@@ -174,7 +179,7 @@ struct MovieDetailView: View {
 
 private struct MovieImageView: View {
 
-    let result: SearchResult
+    let result: KTSearchResult
 
     var imagePath: String? {
         result.posterPath
@@ -217,8 +222,8 @@ private struct MovieImageView: View {
     if let tmdbManager {
         NavigationStack {
             MovieDetailView(
-                displayServer: .constant(.moviesAPI),
-                result: SearchResult(
+                displayServer: .constant(.moviesApi),
+                result: KTSearchResult(
                     id: 969681,
                     mediaType: .movie,
                     title: "Spider-Man: Brand New Day",

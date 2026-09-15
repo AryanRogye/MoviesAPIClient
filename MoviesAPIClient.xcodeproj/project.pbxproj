@@ -106,6 +106,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 9B6EBDAB3058AC960058478C /* Build configuration list for PBXNativeTarget "MoviesAPIClient" */;
 			buildPhases = (
+				9BE2E94F3059E5D20059DA6C /* Build KMP SharedLogic */,
 				9B6EBD883058AC940058478C /* Sources */,
 				9B6EBD893058AC940058478C /* Frameworks */,
 				9B6EBD8A3058AC940058478C /* Resources */,
@@ -223,6 +224,20 @@
 			);
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		9BE2E94F3059E5D20059DA6C /* Build KMP SharedLogic */ = {
+			isa = PBXShellScriptBuildPhase;
+			name = "Build KMP SharedLogic";
+			shellPath = /bin/sh;
+			shellScript = (
+				"cd \"$SRCROOT/MoviesShared\"",
+				"",
+				"./gradlew :sharedLogic:embedAndSignAppleFrameworkForXcode",
+				"",
+			);
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		9B6EBD883058AC940058478C /* Sources */ = {
@@ -397,6 +412,7 @@
 				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
 				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
 				ENABLE_RESOURCE_ACCESS_USB = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MoviesAPIClient/Info.plist;
@@ -452,6 +468,7 @@
 				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
 				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
 				ENABLE_RESOURCE_ACCESS_USB = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MoviesAPIClient/Info.plist;

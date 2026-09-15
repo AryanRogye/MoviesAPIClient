@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import SharedLogic
 
 struct FavoritesView: View {
 
@@ -38,7 +39,7 @@ struct FavoritesView: View {
     @State private var error: String?
     @State private var showError: Bool = false
 
-    @State private var searchResult: SearchResult?
+    @State private var searchResult: KTSearchResult?
     @State private var goToDetail: Bool = false
 
     @State private var resolveTask: Task<Void, Never>?
