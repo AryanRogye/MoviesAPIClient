@@ -1,27 +1,11 @@
 //
-//  SearchResultsView.swift
+//  SearchResultsRow.swift
 //  MoviesAPIClient
 //
-//  Created by Aryan Rogye on 9/14/26.
+//  Created by Aryan Rogye on 9/15/26.
 //
 
 import SwiftUI
-
-struct SearchResultsView: View {
-
-    let searchResults: [SearchResult]
-
-    var body: some View {
-        ForEach(searchResults, id: \.id) { result in
-            NavigationLink {
-                WatchDetailView(result: result)
-            } label: {
-                SearchResultsRow(result: result)
-            }
-            .buttonStyle(.plain)
-        }
-    }
-}
 
 struct SearchResultsRow: View {
     let result: SearchResult
@@ -35,6 +19,7 @@ struct SearchResultsRow: View {
             Spacer()
         }
         .padding(.vertical, 6)
+        .contentShape(Rectangle())
     }
 
     @ViewBuilder

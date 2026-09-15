@@ -27,8 +27,10 @@ struct MovieDetailView: View {
 #elseif os(macOS)
                 EmbeddedMovieView(url: movieUrl)
                     .id(reloadID)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 200)
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: .infinity
+                    )
                     .padding(.horizontal, 10)
 #endif
             } else {
