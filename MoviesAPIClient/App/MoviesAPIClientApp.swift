@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 @main
 struct MoviesAPIClientApp: App {
@@ -13,6 +14,7 @@ struct MoviesAPIClientApp: App {
         WindowGroup {
             Root()
         }
+        .modelContainer(for: [Favorite.self])
 #if os(macOS)
         .windowToolbarStyle(
             .expanded

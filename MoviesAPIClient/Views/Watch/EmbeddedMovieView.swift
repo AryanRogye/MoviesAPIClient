@@ -21,12 +21,21 @@ struct EmbeddedMovieView: View {
     }
 }
 
+#if os(iOS)
+private typealias Representable = UIViewRepresentable
+
+#elseif os(macOS)
+private typealias Representable = NSViewRepresentable
+#endif
+
 /// Bridges a `WKWebView` from `WebViewModel` into SwiftUI.
-struct WebView: UIViewRepresentable {
+struct WebView: Representable {
+
 
     let blockingService: BlockingService
     let url: URL
 
+    #if os(iOS)
     func makeUIView(context: Context) -> WKWebView {
 
         let config = WKWebViewConfiguration()
@@ -52,6 +61,31 @@ struct WebView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: WKWebView, context: Context) {}
+    #elseif os(macOS)
+    func makeNSView(context: Context) -> WKWebView {
+
+        let config = WKWebViewConfiguration()
+        config.preferences.javaScriptCanOpenWindowsAutomatically = false
+        config.mediaTypesRequiringUserActionForPlayback = []
+        config.websiteDataStore = .default()
+        /// Important to allow to go into fullscreen
+        config.preferences.isElementFullscreenEnabled = true
+
+        blockingService.attachPopupBlocking(to: config)
+
+        let wv = WKWebView(frame: .zero, configuration: config)
+        wv.allowsBackForwardNavigationGestures = false
+        wv.layer?.drawsAsynchronously = true
+        wv.layer?.shouldRasterize = false
+
+        blockingService.attachNetworkFilters(to: wv)
+        context.coordinator.attach(to: wv)
+        wv.load(url)
+        return wv
+
+    }
+    func updateNSView(_ nsView: WKWebView, context: Context) {}
+    #endif
 
     func makeCoordinator() -> Coordinator {
         Coordinator()

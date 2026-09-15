@@ -40,9 +40,17 @@ struct TVDetailView: View {
     var body: some View {
         ScrollView {
             if let tvUrl {
+#if os(iOS)
                 EmbeddedMovieView(url: tvUrl)
                     .id(reloadID)
                     .frame(width: UIScreen.main.bounds.width - 20, height: 200)
+#elseif os(macOS)
+                EmbeddedMovieView(url: tvUrl)
+                    .id(reloadID)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 200)
+                    .padding(.horizontal, 10)
+#endif
             }
 
             if let tvShow {

@@ -20,9 +20,17 @@ struct MovieDetailView: View {
     var body: some View {
         ScrollView {
             if let movieUrl {
+#if os(iOS)
                 EmbeddedMovieView(url: movieUrl)
                     .id(reloadID)
                     .frame(width: UIScreen.main.bounds.width - 20, height: 200)
+#elseif os(macOS)
+                EmbeddedMovieView(url: movieUrl)
+                    .id(reloadID)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 200)
+                    .padding(.horizontal, 10)
+#endif
             }
         }
         .toolbar {
