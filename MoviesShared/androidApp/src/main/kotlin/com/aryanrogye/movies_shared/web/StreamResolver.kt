@@ -37,6 +37,7 @@ data class ResolvedStream(
     val userAgent: String,
     val isHls: Boolean,
     val cookies: String? = null,
+    val streamHeaders: Map<String, String> = emptyMap(),
 )
 
 object StreamResolver {
@@ -74,14 +75,24 @@ object StreamResolver {
         val mainHandler = Handler(Looper.getMainLooper())
         var tryParseApiJson: ((String) -> Unit)? = null
 
-        fun candidateFound(rawUrl: String, fromApiJson: String? = null) {
-            var url = rawUrl.trim()
+        fun candidateFound(
+            rawUrl: String,
+            fromApiJson: String? = null,
+            streamHeaders: Map<String, String> = emptyMap(),
+        ) {
+            var url = rawUrl.trim().replace("\\/", "/")
             if (url.startsWith("blob:") || url.startsWith("data:")) return
             // Never hand the JSON API itself to ExoPlayer - it returns
             // application/json, which surfaces as "source error". Only the
             // parsed playlist/mp4 inside it is playable.
             if (url.contains("/api/b/") && fromApiJson == null) {
                 tryParseApiJson?.invoke(url)
+                return
+            }
+            // Reject JSON blobs that slipped through (e.g. {"type":"mp4",...}).
+            // Only real http(s) media URLs are playable.
+            if (!url.lowercase().startsWith("http")) {
+                Log.w(TAG, "Rejecting non-URL stream candidate: ${url.take(120)}")
                 return
             }
             // Resolve relative URLs against the embed page.
@@ -96,8 +107,15 @@ object StreamResolver {
                 CookieManager.getInstance().getCookie(url)
                     ?: CookieManager.getInstance().getCookie(embedUrl)
             }.getOrNull()
+            // Per-stream UA wins (VidLink CDNs pin to e.g. com.community.oneroom).
+            val effectiveUa = streamHeaders["User-Agent"] ?: streamHeaders["user-agent"] ?: userAgent
             Log.i(TAG, "Stream found: $url (via ${fromApiJson ?: "network"})")
-            complete(ResolvedStream(url, referer, origin, userAgent, url.lowercase().contains("m3u8"), cookies))
+            complete(
+                ResolvedStream(
+                    url, referer, origin, effectiveUa,
+                    url.lowercase().contains("m3u8"), cookies, streamHeaders,
+                ),
+            )
         }
 
         // VidLink's player calls an internal JSON API that lists every quality.
@@ -125,9 +143,11 @@ object StreamResolver {
                     }
                     val body = conn.inputStream.bufferedReader().use { it.readText() }
                     Log.d(TAG, "api/b body ${body.length} chars: ${body.take(300)}")
-                    val best = extractBestStreamFromJson(body)
+                    val best = extractBestParsedStream(body)
                     if (best != null) {
-                        mainHandler.post { candidateFound(best, fromApiJson = apiUrl) }
+                        mainHandler.post {
+                            candidateFound(best.url, fromApiJson = apiUrl, streamHeaders = best.headers)
+                        }
                     } else {
                         Log.w(TAG, "api/b had no playable stream: ${body.take(500)}")
                     }
@@ -299,36 +319,83 @@ object StreamResolver {
             (lower.contains(".mp4") && !lower.contains("thumbnail"))
     }
 
-    /**
-     * VidLink /api/b/ shape: {"stream":{"qualities":{"1080":"https://...mp4",...},
-     * "playlist":"https://...m3u8"}}. Prefer the HLS playlist, else highest mp4.
-     * Falls back to a recursive scan so minor API shape changes don't break us.
-     */
-    internal fun extractBestStreamFromJson(body: String): String? {
+    // VidLink api/b shapes seen in the wild:
+    //  A) stream.playlist = m3u8 string, stream.qualities = {1080: mp4 string}
+    //  B) stream.qualities = {1080: {type, url, headers, requiresProxy}}
+    // Prefer HLS playlist, else highest mp4. Returns URL + per-stream headers
+    // (CDNs like hakunaymatata reject requests without their expected UA).
+    internal data class ParsedStream(val url: String, val headers: Map<String, String> = emptyMap())
+
+    internal fun extractBestStreamFromJson(body: String): String? =
+        extractBestParsedStream(body)?.url
+
+    internal fun extractBestParsedStream(body: String): ParsedStream? {
         return runCatching {
             val root = JSONObject(body)
-            // Walk: root -> stream -> playlist, or stream -> qualities{1080: url}
             val stream = root.optJSONObject("stream")
-            stream?.optString("playlist")?.takeIf { it.contains("http") }?.let { return it }
+            // A) direct playlist string.
+            stream?.optString("playlist")?.takeIf { it.contains("http") }?.let {
+                return ParsedStream(it, emptyMap())
+            }
+            // B) qualities map: values are either plain URL strings or
+            // {"url": "...", "headers": {...}} objects (current VidLink shape).
             val qualities = stream?.optJSONObject("qualities")
             if (qualities != null) {
-                val best = qualities.keys().asSequence()
-                    .mapNotNull { key -> key.toIntOrNull()?.let { it to qualities.optString(key) } }
-                    .filter { it.second.contains("http") }
-                    .maxByOrNull { it.first }
-                    ?.second
-                if (best != null) return best
+                data class Q(val rank: Int, val parsed: ParsedStream)
+                val scored = qualities.keys().asSequence().mapNotNull { key ->
+                    val rank = key.toIntOrNull() ?: return@mapNotNull null
+                    when (val v = qualities.opt(key)) {
+                        is String -> if (v.contains("http")) Q(rank, ParsedStream(v)) else null
+                        is JSONObject -> {
+                            val url = v.optString("url").takeIf { it.contains("http") }
+                                ?: return@mapNotNull null
+                            Q(rank, ParsedStream(url, extractHeaders(v.optJSONObject("headers"))))
+                        }
+                        else -> null
+                    }
+                }.maxByOrNull { it.rank }
+                if (scored != null) return scored.parsed
             }
-            // Recursive fallback for unexpected shapes.
-            findFirstStreamString(root)?.let { return it }
-            // Top-level playlist field variant.
-            root.optString("playlist").takeIf { it.contains("http") }
-        }.getOrNull()?.takeIf { it.contains("http") }
+            // C) sources array variant: [{"file"|"url"|"src": "..."}].
+            val sources = stream?.optJSONArray("sources") ?: root.optJSONArray("sources")
+            if (sources != null) {
+                for (i in 0 until sources.length()) {
+                    val item = sources.optJSONObject(i) ?: continue
+                    val url = item.optString("file")
+                        .ifEmpty { item.optString("url") }
+                        .ifEmpty { item.optString("src") }
+                    if (url.contains("http") && looksLikeStream(url)) return ParsedStream(url)
+                }
+            }
+            // D) recursive fallback for unexpected shapes.
+            findFirstParsedStream(root)?.let { return it }
+            root.optString("playlist").takeIf { it.contains("http") }?.let { return ParsedStream(it) }
+            null
+        }.getOrNull()
     }
 
-    private fun findFirstStreamString(obj: Any?): String? {
+    private fun extractHeaders(obj: JSONObject?): Map<String, String> {
+        if (obj == null) return emptyMap()
+        return buildMap {
+            obj.keys().forEach { k -> put(k, obj.optString(k)) }
+        }.filterValues { it.isNotEmpty() }
+    }
+
+    private fun findFirstStreamString(obj: Any?): String? =
+        findFirstParsedStream(obj)?.url
+
+    private fun findFirstParsedStream(obj: Any?): ParsedStream? {
         when (obj) {
             is JSONObject -> {
+                // Objects shaped like {"url": "...", "headers": {...}} (VidLink
+                // quality entries) resolve directly instead of toString()ing
+                // the whole object - that was the "source error" bug.
+                if (obj.has("url")) {
+                    val url = obj.optString("url")
+                    if (url.contains("http") && looksLikeStream(url)) {
+                        return ParsedStream(url, extractHeaders(obj.optJSONObject("headers")))
+                    }
+                }
                 // Prefer keys that sound like streams first.
                 val keys = obj.keys().asSequence().toList()
                 val ordered = keys.sortedBy {
@@ -346,21 +413,21 @@ object StreamResolver {
                     val v = obj.opt(key)
                     if (v is String && v.contains("http") &&
                         (v.contains("m3u8") || v.contains(".mp4") || v.contains(".mpd"))
-                    ) return v
+                    ) return ParsedStream(v)
                 }
                 for (key in ordered) {
-                    findFirstStreamString(obj.opt(key))?.let { return it }
+                    findFirstParsedStream(obj.opt(key))?.let { return it }
                 }
             }
             is org.json.JSONArray -> {
                 for (i in 0 until obj.length()) {
-                    findFirstStreamString(obj.opt(i))?.let { return it }
+                    findFirstParsedStream(obj.opt(i))?.let { return it }
                 }
             }
             is String -> {
                 if (obj.contains("http") &&
                     (obj.contains("m3u8") || obj.contains(".mp4") || obj.contains(".mpd"))
-                ) return obj
+                ) return ParsedStream(obj)
             }
         }
         return null

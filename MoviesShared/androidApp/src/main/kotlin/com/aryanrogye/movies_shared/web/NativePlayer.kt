@@ -47,7 +47,14 @@ fun NativePlayer(
             setDefaultRequestProperties(
                 buildMap {
                     put("Referer", stream.referer)
-                    put("Accept", "*/*")
+                    // VidLink CDN pins to the UA in its api/b headers
+                    // (e.g. com.community.oneroom) - generic Chrome 403s.
+                    stream.streamHeaders.forEach { (k, v) ->
+                        if (k.equals("User-Agent", true)) return@forEach
+                        if (k.equals("Referer", true) || k.equals("Cookie", true)) return@forEach
+                        put(k, v)
+                    }
+                    put("Accept", stream.streamHeaders["Accept"] ?: "*/*")
                     stream.origin?.let { put("Origin", it) }
                     if (!stream.cookies.isNullOrEmpty()) put("Cookie", stream.cookies)
                 },
