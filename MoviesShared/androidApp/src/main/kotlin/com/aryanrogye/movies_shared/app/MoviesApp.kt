@@ -305,11 +305,24 @@ private fun MovieDetail(appState: MoviesAppState, blocker: AndroidBlockingServic
     val reloadFocus = remember { FocusRequester() }
     val url = appState.displayServer.loadMovie(result.id)
     if (loaded) {
+        BackHandler { loaded = false }
         Column(Modifier.fillMaxSize()) {
-            Row(Modifier.padding(bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                Modifier.padding(bottom = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                FocusButton("‹  Details") { loaded = false }
                 FocusButton("↻  Reload", modifier = Modifier.focusRequester(reloadFocus)) { reloadKey++ }
-                Text(result.displayName(), fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.CenterVertically))
-                Text("↑ controls", color = Color.White.copy(alpha = .5f), modifier = Modifier.align(Alignment.CenterVertically))
+                Text(
+                    result.displayName(),
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Text("↑ controls", color = Color.White.copy(alpha = .5f))
             }
             MediaWebView(
                 url,
@@ -333,35 +346,65 @@ private fun TvDetail(appState: MoviesAppState, blocker: AndroidBlockingService, 
     var selectedEpisode by remember { mutableStateOf<KTEpisode?>(null) }
     var reloadKey by remember { mutableIntStateOf(0) }
     val reloadFocus = remember { FocusRequester() }
-    LaunchedEffect(result.id) { show = appState.tvInfo(result.id) }
+
+    LaunchedEffect(result.id) {
+        val tvShow = appState.tvInfo(result.id)
+        show = tvShow
+        if (selectedSeason == null && tvShow != null && tvShow.seasons.isNotEmpty()) {
+            selectedSeason = tvShow.seasons.firstOrNull { it.seasonNumber > 0 }?.seasonNumber
+                ?: tvShow.seasons.first().seasonNumber
+        }
+    }
+
     LaunchedEffect(selectedSeason) {
         selectedSeason?.let { season ->
             episodes = appState.seasonInfo(result.id, season)?.episodes.orEmpty()
-            selectedEpisode = null
         }
     }
+
     val episode = selectedEpisode
     if (episode != null && selectedSeason != null) {
+        BackHandler { selectedEpisode = null }
         Column(Modifier.fillMaxSize()) {
-            Row(Modifier.padding(bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                Modifier.padding(bottom = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                FocusButton("‹  Episodes") { selectedEpisode = null }
                 FocusButton("↻  Reload", modifier = Modifier.focusRequester(reloadFocus)) { reloadKey++ }
-                Text("Season $selectedSeason · Episode ${episode.episodeNumber}", modifier = Modifier.align(Alignment.CenterVertically))
-                Text("↑ controls", color = Color.White.copy(alpha = .5f), modifier = Modifier.align(Alignment.CenterVertically))
+                Text(
+                    text = "${result.displayName()} · S$selectedSeason E${episode.episodeNumber}${if (!episode.name.isNullOrBlank()) ": ${episode.name}" else ""}",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Text("↑ controls", color = Color.White.copy(alpha = .5f))
             }
             MediaWebView(
-                appState.displayServer.loadTvShow(result.id, selectedSeason!!, episode.episodeNumber),
-                reloadKey,
-                blocker,
-                Modifier.height(360.dp).fillMaxWidth(),
+                url = appState.displayServer.loadTvShow(result.id, selectedSeason!!, episode.episodeNumber),
+                reloadKey = reloadKey,
+                blockingService = blocker,
+                modifier = Modifier.fillMaxSize(),
                 onExitFocus = { reloadFocus.requestFocus() },
                 onError = appState::reportError,
             )
-            TvSelectors(show, selectedSeason, episodes, episode, onSeason = { selectedSeason = it }, onEpisode = { selectedEpisode = it })
         }
     } else {
         LazyColumn(Modifier.fillMaxSize()) {
             item { Hero(result, backdropPath = show?.backdropPath, playLabel = null, onPlay = {}) }
-            item { TvSelectors(show, selectedSeason, episodes, episode, onSeason = { selectedSeason = it }, onEpisode = { selectedEpisode = it }) }
+            item {
+                TvSelectors(
+                    show = show,
+                    selectedSeason = selectedSeason,
+                    episodes = episodes,
+                    selectedEpisode = episode,
+                    onSeason = { selectedSeason = it },
+                    onEpisode = { selectedEpisode = it },
+                )
+            }
         }
     }
 }

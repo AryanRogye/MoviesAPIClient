@@ -6,10 +6,13 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
 import android.graphics.Paint
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
@@ -36,9 +39,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import java.io.ByteArrayInputStream
+import android.app.Activity
+import android.content.ContextWrapper
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -51,17 +60,46 @@ fun MediaWebView(
     onError: (String) -> Unit,
 ) {
     val context = LocalContext.current
+    val activity = remember(context) { context.findActivity() }
     var progress by remember { mutableFloatStateOf(0f) }
     var isLoading by remember { mutableStateOf(false) }
     var webView by remember { mutableStateOf<WebView?>(null) }
     var customView by remember { mutableStateOf<View?>(null) }
     var customViewCallback by remember { mutableStateOf<WebChromeClient.CustomViewCallback?>(null) }
     var documentHost by remember { mutableStateOf<String?>(null) }
+    val stallHandler = remember { Handler(Looper.getMainLooper()) }
+    var stallWatchdog by remember { mutableStateOf<Runnable?>(null) }
+
+    fun cancelStallWatchdog() {
+        stallWatchdog?.let { stallHandler.removeCallbacks(it) }
+        stallWatchdog = null
+    }
+
+    fun scheduleStallWatchdog() {
+        cancelStallWatchdog()
+        val runnable = Runnable {
+            onError(
+                "This source didn't start playing within ${STALL_TIMEOUT_MS / 1000}s. " +
+                    "It may be unavailable right now — try Reload or switch server."
+            )
+        }
+        stallWatchdog = runnable
+        stallHandler.postDelayed(runnable, STALL_TIMEOUT_MS)
+    }
 
     fun closeFullscreen() {
+        val cv = customView ?: return
+        (cv.parent as? ViewGroup)?.removeView(cv)
+        activity?.let { act ->
+            WindowCompat.setDecorFitsSystemWindows(act.window, true)
+            val controller = WindowInsetsControllerCompat(act.window, act.window.decorView)
+            controller.show(WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
+        }
         customViewCallback?.onCustomViewHidden()
         customViewCallback = null
         customView = null
+        webView?.requestFocus()
     }
 
     BackHandler(enabled = customView != null) {
@@ -69,7 +107,7 @@ fun MediaWebView(
     }
 
     Box(modifier = modifier.background(Color.Black)) {
-        AndroidView(
+        AndroidView<TvCursorWebView>(
             modifier = Modifier.fillMaxSize(),
             factory = {
                 TvCursorWebView(context, onExitFocus).apply {
@@ -80,22 +118,34 @@ fun MediaWebView(
                     isFocusableInTouchMode = true
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
+                    settings.databaseEnabled = true
+                    settings.useWideViewPort = false
+                    settings.loadWithOverviewMode = false
+                    settings.allowFileAccess = true
+                    settings.allowContentAccess = true
+                    settings.cacheMode = WebSettings.LOAD_DEFAULT
                     CookieManager.getInstance().setAcceptCookie(true)
                     CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                     settings.mediaPlaybackRequiresUserGesture = false
                     settings.javaScriptCanOpenWindowsAutomatically = false
                     settings.setSupportMultipleWindows(true)
-                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-                    // VidFast rejects Amazon WebView through a Chrome-specific
-                    // timing gate before it ever requests the stream. The iPad
-                    // Safari identity follows the same non-Chrome path as the
-                    // working iOS client while leaving rendering native to AWV.
+                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                    // Use a desktop user agent so streaming sites serve a landscape-
+                    // friendly layout that fits Fire TV. The iOS iPad UA caused sites
+                    // to serve mobile/portrait layouts that were clipped or rotated.
                     settings.userAgentString = playerUserAgent(url)
+                    addJavascriptInterface(
+                        PlaybackWatchdogBridge { cancelStallWatchdog() },
+                        PLAYBACK_WATCHDOG_BRIDGE_NAME,
+                    )
 
                     webViewClient = object : WebViewClient() {
                         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                            val requestUrl = request.url.toString()
                             val scheme = request.url.scheme?.lowercase()
-                            if (!request.isForMainFrame && request.url.toString() in setOf("about:blank", "about:srcdoc")) return false
+                            // Allow about:blank and about:srcdoc for sub-frames (player iframes).
+                            if (requestUrl == "about:blank" || requestUrl == "about:srcdoc") return false
+                            // Block non-HTTP(S) schemes.
                             return scheme != "http" && scheme != "https"
                         }
 
@@ -114,15 +164,18 @@ fun MediaWebView(
                             isLoading = false
                             view.evaluateJavascript(blockingService.popupScript, null)
                             view.evaluateJavascript(PLAYER_COMPATIBILITY_SCRIPT, null)
+                            view.evaluateJavascript(VIEWPORT_UNIT_POLYFILL_SCRIPT, null)
+                            view.evaluateJavascript(PLAYBACK_WATCHDOG_SCRIPT, null)
                             view.requestFocus()
+                            scheduleStallWatchdog()
                         }
 
                         override fun onReceivedError(view: WebView, request: WebResourceRequest, error: android.webkit.WebResourceError) {
                             if (request.isForMainFrame && error.errorCode != ERROR_HOST_LOOKUP) {
+                                cancelStallWatchdog()
                                 onError(error.description.toString())
                             }
                         }
-
                     }
 
                     webChromeClient = object : WebChromeClient() {
@@ -146,9 +199,41 @@ fun MediaWebView(
                         }
 
                         override fun onShowCustomView(view: View, callback: CustomViewCallback) {
-                            customViewCallback?.onCustomViewHidden()
+                            cancelStallWatchdog()
+                            if (customView != null) {
+                                closeFullscreen()
+                            }
                             customView = view
                             customViewCallback = callback
+
+                            activity?.let { act ->
+                                val decorGroup = act.window.decorView as? ViewGroup ?: return@let
+
+                                val params = FrameLayout.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                )
+                                view.setBackgroundColor(android.graphics.Color.BLACK)
+                                // Ensure the fullscreen view renders above the Compose layer.
+                                view.translationZ = 999f
+                                decorGroup.addView(view, params)
+
+                                // Use modern immersive mode via WindowInsetsControllerCompat.
+                                WindowCompat.setDecorFitsSystemWindows(act.window, false)
+                                val controller = WindowInsetsControllerCompat(act.window, act.window.decorView)
+                                controller.hide(WindowInsetsCompat.Type.systemBars())
+                                controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+
+                                view.isFocusable = true
+                                view.isFocusableInTouchMode = true
+                                view.requestFocus()
+                                view.setOnKeyListener { _, keyCode, keyEvent ->
+                                    if (keyCode == KeyEvent.KEYCODE_BACK && keyEvent.action == KeyEvent.ACTION_UP) {
+                                        closeFullscreen()
+                                        true
+                                    } else false
+                                }
+                            }
                         }
 
                         override fun onHideCustomView() = closeFullscreen()
@@ -174,23 +259,11 @@ fun MediaWebView(
                 trackColor = Color.Transparent,
             )
         }
-
-        customView?.let { fullscreen ->
-            Dialog(
-                onDismissRequest = { closeFullscreen() },
-                properties = DialogProperties(
-                    usePlatformDefaultWidth = false,
-                    decorFitsSystemWindows = false,
-                    dismissOnClickOutside = false,
-                ),
-            ) {
-                AndroidView(factory = { fullscreen }, modifier = Modifier.fillMaxSize().background(Color.Black))
-            }
-        }
     }
 
     DisposableEffect(Unit) {
         onDispose {
+            cancelStallWatchdog()
             closeFullscreen()
             webView?.apply {
                 stopLoading()
@@ -205,32 +278,240 @@ fun MediaWebView(
 }
 
 private const val URL_KEY_TAG = 0x4d415049
-// Keep a consistent, genuine browser identity for MoviesAPI's embedded
-// verification flow. Only VidFast needs the Safari compatibility workaround.
-private fun playerUserAgent(url: String): String? =
-    if (android.net.Uri.parse(url).host == "vidfast.vc") IOS_COMPATIBILITY_USER_AGENT else null
-// The Safari identity selects the provider's iOS fullscreen branch. Bridge
-// that entry point to Chromium's fullscreen API and correct percentage-height
-// layouts whose root otherwise collapses inside Amazon WebView.
-private val PLAYER_COMPATIBILITY_SCRIPT = """
-    (() => {
-        if (!document.getElementById('movies-tv-viewport')) {
-            const style = document.createElement('style');
-            style.id = 'movies-tv-viewport';
-            style.textContent = 'html,body{width:100%!important;height:100%!important;min-height:100vh!important;margin:0!important}';
-            document.head.appendChild(style);
-        }
-        if (!HTMLVideoElement.prototype.webkitEnterFullScreen) {
-            HTMLVideoElement.prototype.webkitEnterFullScreen = function() {
-                this.requestFullscreen().catch(() => {});
-            };
-            HTMLVideoElement.prototype.webkitEnterFullscreen = HTMLVideoElement.prototype.webkitEnterFullScreen;
-        }
-    })();
-""".trimIndent()
+
+// How long to wait after a page finishes loading for a <video> to actually start
+// playing (or for native fullscreen to engage) before surfacing a clear error
+// instead of leaving the user staring at an infinite spinner.
+private const val STALL_TIMEOUT_MS = 25_000L
+private const val PLAYBACK_WATCHDOG_BRIDGE_NAME = "MoviesPlaybackWatchdog"
+
+// Exposed to the page as window.MoviesPlaybackWatchdog.reportPlaying(). Called
+// from PLAYBACK_WATCHDOG_SCRIPT once a <video> element actually starts playing,
+// so the stall watchdog can stand down instead of firing a false-positive error.
+private class PlaybackWatchdogBridge(private val onPlaying: () -> Unit) {
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    @JavascriptInterface
+    fun reportPlaying() {
+        mainHandler.post(onPlaying)
+    }
+}
+
+// Desktop Chrome user agent for landscape-friendly layouts on Fire TV.
+private const val DESKTOP_USER_AGENT =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+        "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+
+// iPad Safari user agent as a fallback for providers that require a mobile identity
+// (e.g. Cloudflare Turnstile, certain bot-detection on moviesapi.to).
 private const val IOS_COMPATIBILITY_USER_AGENT =
     "Mozilla/5.0 (iPad; CPU OS 18_6 like Mac OS X) AppleWebKit/605.1.15 " +
         "(KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1"
+
+private fun playerUserAgent(url: String): String {
+    // MoviesAPI's bot detection requires a mobile/iPad identity.
+    // VidFast and other providers work best with a desktop UA on Fire TV
+    // so they serve a landscape-friendly layout.
+    return if (url.contains("moviesapi.to") || url.contains("moviesapi.vip")) {
+        IOS_COMPATIBILITY_USER_AGENT
+    } else {
+        DESKTOP_USER_AGENT
+    }
+}
+
+private val PLAYER_COMPATIBILITY_SCRIPT = """
+    (() => {
+        if (!document.getElementById('movies-tv-compat')) {
+            const style = document.createElement('style');
+            style.id = 'movies-tv-compat';
+            style.textContent = `
+                video, iframe {
+                    transform: none !important;
+                    max-width: 100% !important;
+                    border: none !important;
+                }
+            `;
+            (document.head || document.documentElement).appendChild(style);
+        }
+        /* Polyfill Safari-specific fullscreen API for sites that call it */
+        if (!HTMLVideoElement.prototype.webkitEnterFullScreen) {
+            HTMLVideoElement.prototype.webkitEnterFullScreen = function() {
+                if (this.requestFullscreen) {
+                    this.requestFullscreen().catch(() => {});
+                } else if (this.webkitRequestFullScreen) {
+                    this.webkitRequestFullScreen();
+                }
+            };
+            HTMLVideoElement.prototype.webkitEnterFullscreen = HTMLVideoElement.prototype.webkitEnterFullScreen;
+        }
+        /* Scroll the player into view once it appears */
+        const scrollToPlayer = () => {
+            const el = document.querySelector('video, iframe[src*="player"], iframe[src*="embed"], iframe[allowfullscreen]');
+            if (el) { el.scrollIntoView({ block: 'start', behavior: 'smooth' }); return true; }
+            return false;
+        };
+        if (!scrollToPlayer()) {
+            let attempts = 0;
+            const poll = setInterval(() => {
+                if (scrollToPlayer() || ++attempts > 30) clearInterval(poll);
+            }, 500);
+        }
+    })();
+""".trimIndent()
+
+// This Fire TV WebView build's internal viewport height (the "initial containing
+// block" Blink uses for both the `vh` family of CSS units and for resolving
+// percentage heights on elements with no positioned ancestor) is stuck at 0,
+// even though `window.innerHeight` reports the real, correct value. Verified
+// directly: a bare `<div style="height:100vh">` on a blank page measures 0px,
+// and so does a `position:absolute` div using `inset:0; height:100%` with no
+// positioned ancestor — both rely on that same broken internal value. Sites
+// that size full-screen overlays this way end up with collapsed, zero-height
+// containers whose centered children render half off the top of the screen.
+// Two independent fixes, since the two symptoms don't share a resolution path:
+// 1. Rewrite raw `vh`/`svh`/`lvh`/`dvh` tokens in every stylesheet rule to a
+//    `--movies-vh` custom property derived from `window.innerHeight`.
+// 2. Give `<body>` a real pixel height and `position: relative` so it becomes
+//    the containing block for absolutely-positioned descendants instead of the
+//    broken initial containing block — fixes `height:100%`/`inset:0` overlays.
+private val VIEWPORT_UNIT_POLYFILL_SCRIPT = """
+    (() => {
+        if (window.__moviesViewportUnitPolyfill) return;
+        window.__moviesViewportUnitPolyfill = true;
+
+        const unitRe = /(-?[0-9]*\.?[0-9]+)(dvh|svh|lvh|vh)\b/gi;
+
+        const patchValue = (value) => {
+            if (!value || value.indexOf('vh') === -1) return value;
+            return value.replace(unitRe, (match, num) => 'calc(' + num + ' * var(--movies-vh, 1vh))');
+        };
+
+        const patchStyleDeclaration = (style) => {
+            for (let i = style.length - 1; i >= 0; i--) {
+                const prop = style[i];
+                const val = style.getPropertyValue(prop);
+                if (val && val.indexOf('vh') !== -1) {
+                    const priority = style.getPropertyPriority(prop);
+                    style.setProperty(prop, patchValue(val), priority);
+                }
+            }
+        };
+
+        const patchRules = (rules) => {
+            if (!rules) return;
+            for (let i = 0; i < rules.length; i++) {
+                const rule = rules[i];
+                if (rule.style) patchStyleDeclaration(rule.style);
+                if (rule.cssRules) patchRules(rule.cssRules);
+            }
+        };
+
+        const patchAllSheets = () => {
+            for (let i = 0; i < document.styleSheets.length; i++) {
+                try {
+                    patchRules(document.styleSheets[i].cssRules);
+                } catch (e) {
+                    /* cross-origin stylesheet; nothing we can do */
+                }
+            }
+            document.querySelectorAll('[style*="vh"]').forEach((el) => patchStyleDeclaration(el.style));
+        };
+
+        const updateVhVariable = () => {
+            document.documentElement.style.setProperty('--movies-vh', (window.innerHeight / 100) + 'px');
+        };
+
+        const fixContainingBlock = () => {
+            const body = document.body;
+            if (!body) return;
+            if (getComputedStyle(body).position === 'static') {
+                body.style.setProperty('position', 'relative', 'important');
+            }
+            body.style.setProperty('height', window.innerHeight + 'px', 'important');
+            body.style.setProperty('min-height', window.innerHeight + 'px', 'important');
+        };
+
+        updateVhVariable();
+        fixContainingBlock();
+        patchAllSheets();
+
+        window.addEventListener('resize', () => {
+            updateVhVariable();
+            fixContainingBlock();
+            patchAllSheets();
+        });
+
+        new MutationObserver((records) => {
+            const addedStyleNode = records.some((record) =>
+                Array.from(record.addedNodes).some(
+                    (node) => node.nodeType === 1 && (node.tagName === 'STYLE' || node.tagName === 'LINK')
+                )
+            );
+            if (addedStyleNode) patchAllSheets();
+        }).observe(document.documentElement, { childList: true, subtree: true });
+
+        // Catch rules (and a body element that didn't exist yet) inserted by hydration
+        // shortly after our own injection.
+        [300, 1000, 3000].forEach((delay) => {
+            setTimeout(() => {
+                fixContainingBlock();
+                patchAllSheets();
+            }, delay);
+        });
+    })();
+""".trimIndent()
+
+// Reports the first real sign of video playback (or the lack of one) to the
+// native side so MediaWebView's stall watchdog knows whether to fire. Covers
+// both a same-origin <video> that's already playing and ones added later by
+// client-side JS (both MoviesAPI and VidFast build their player UI after an
+// async fetch resolves).
+private val PLAYBACK_WATCHDOG_SCRIPT = """
+    (() => {
+        if (window.__moviesPlaybackWatchdog) return;
+        window.__moviesPlaybackWatchdog = true;
+
+        const reportPlaying = () => {
+            if (window.$PLAYBACK_WATCHDOG_BRIDGE_NAME) {
+                window.$PLAYBACK_WATCHDOG_BRIDGE_NAME.reportPlaying();
+            }
+        };
+
+        const watch = (video) => {
+            if (video.__moviesWatched) return;
+            video.__moviesWatched = true;
+            if (video.readyState >= 2 || !video.paused) {
+                reportPlaying();
+                return;
+            }
+            const onPlaying = () => reportPlaying();
+            video.addEventListener('playing', onPlaying, { once: true });
+            video.addEventListener('loadeddata', onPlaying, { once: true });
+            video.addEventListener('timeupdate', onPlaying, { once: true });
+        };
+
+        document.querySelectorAll('video').forEach(watch);
+
+        new MutationObserver((records) => {
+            records.forEach((record) => {
+                record.addedNodes.forEach((node) => {
+                    if (!(node instanceof Element)) return;
+                    if (node.tagName === 'VIDEO') watch(node);
+                    node.querySelectorAll && node.querySelectorAll('video').forEach(watch);
+                });
+            });
+        }).observe(document.documentElement, { childList: true, subtree: true });
+    })();
+""".trimIndent()
+
+private fun Context.findActivity(): Activity? {
+    var ctx = this
+    while (ctx is ContextWrapper) {
+        if (ctx is Activity) return ctx
+        ctx = ctx.baseContext
+    }
+    return null
+}
 private data class MediaRequest(val url: String, val reloadKey: Int)
 
 /**
@@ -285,9 +566,19 @@ private class TvCursorWebView(
                 }
                 return true
             }
+            KeyEvent.KEYCODE_DPAD_UP -> {
+                if (event.action == KeyEvent.ACTION_DOWN) {
+                    if (cursorY <= cursorRadius + 15f * density && scrollY == 0) {
+                        clearFocus()
+                        leaveCursorMode()
+                        return true
+                    }
+                    moveCursor(event.keyCode)
+                }
+                return true
+            }
             KeyEvent.KEYCODE_DPAD_LEFT,
             KeyEvent.KEYCODE_DPAD_RIGHT,
-            KeyEvent.KEYCODE_DPAD_UP,
             KeyEvent.KEYCODE_DPAD_DOWN -> {
                 if (event.action == KeyEvent.ACTION_DOWN) moveCursor(event.keyCode)
                 return true
@@ -321,8 +612,18 @@ private class TvCursorWebView(
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_LEFT -> cursorX -= step
             KeyEvent.KEYCODE_DPAD_RIGHT -> cursorX += step
-            KeyEvent.KEYCODE_DPAD_UP -> cursorY -= step
-            KeyEvent.KEYCODE_DPAD_DOWN -> cursorY += step
+            KeyEvent.KEYCODE_DPAD_UP -> {
+                cursorY -= step
+                if (cursorY <= cursorRadius + 20f * density && scrollY > 0) {
+                    scrollBy(0, -step.toInt())
+                }
+            }
+            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                cursorY += step
+                if (cursorY >= height - cursorRadius - 20f * density) {
+                    scrollBy(0, step.toInt())
+                }
+            }
         }
         cursorX = cursorX.coerceIn(cursorRadius, width - cursorRadius)
         cursorY = cursorY.coerceIn(cursorRadius, height - cursorRadius)
