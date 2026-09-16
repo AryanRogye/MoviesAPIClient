@@ -2,11 +2,11 @@ package com.aryanrogye.movies_shared.app
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusable
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,7 +46,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -183,17 +186,50 @@ private fun HomeScreen(appState: MoviesAppState) {
 @Composable
 private fun SearchScreen(appState: MoviesAppState) {
     var query by remember { mutableStateOf("") }
+    var editing by remember { mutableStateOf(false) }
+    val editorFocus = remember { FocusRequester() }
+    val searchFieldFocus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
     val scope = rememberCoroutineScope()
+    fun finishEditing(search: Boolean) {
+        keyboard?.hide()
+        editing = false
+        searchFieldFocus.requestFocus()
+        if (search) scope.launch { appState.search(query) }
+    }
+    if (editing) {
+        AlertDialog(
+            onDismissRequest = { finishEditing(false) },
+            title = { Text("Search") },
+            text = {
+                TextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    singleLine = true,
+                    placeholder = { Text("Search movies, TV, and people") },
+                    modifier = Modifier.fillMaxWidth().focusRequester(editorFocus),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { finishEditing(true) }),
+                )
+                LaunchedEffect(Unit) {
+                    editorFocus.requestFocus()
+                    keyboard?.show()
+                }
+            },
+            confirmButton = { TextButton(onClick = { finishEditing(true) }) { Text("Search") } },
+            dismissButton = { TextButton(onClick = { finishEditing(false) }) { Text("Done") } },
+        )
+    }
     Column(Modifier.fillMaxSize()) {
         ScreenTitle("Search")
         Row(Modifier.padding(vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            TextField(
-                value = query,
-                onValueChange = { query = it },
-                singleLine = true,
-                placeholder = { Text("Search movies, TV, and people") },
-                modifier = Modifier.weight(1f),
-            )
+            FocusSurface(
+                modifier = Modifier.weight(1f).focusRequester(searchFieldFocus),
+                onClick = { editing = true },
+            ) {
+                Text(query.ifBlank { "Search movies, TV, and people" },
+                    modifier = Modifier.padding(16.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
             FocusButton("Search", modifier = Modifier.padding(start = 12.dp)) {
                 scope.launch { appState.search(query) }
             }
@@ -300,7 +336,7 @@ private fun FavoriteCard(favorite: Favorite, onOpen: () -> Unit, onRemove: () ->
                     Text(favorite.name, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(if (favorite.mediaType == "tv") "TV" else "Movie", fontSize = 12.sp, color = Color.White.copy(alpha = .55f))
                 }
-                SmallAction("☆", onRemove)
+                SmallAction("★", onRemove, "Remove from favorites")
             }
         }
     }
@@ -308,7 +344,8 @@ private fun FavoriteCard(favorite: Favorite, onOpen: () -> Unit, onRemove: () ->
 
 @Composable
 private fun SearchResultRow(result: KTSearchResult, favorite: Boolean, onOpen: () -> Unit, onFavorite: () -> Unit) {
-    FocusSurface(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+      FocusSurface(onClick = onOpen, modifier = Modifier.weight(1f)) {
         Row(Modifier.height(142.dp).padding(8.dp)) {
             Poster(result.posterPath, result.displayName(), Modifier.width(84.dp).fillMaxHeight())
             Column(Modifier.weight(1f).padding(horizontal = 16.dp)) {
@@ -324,8 +361,11 @@ private fun SearchResultRow(result: KTSearchResult, favorite: Boolean, onOpen: (
                 Text(result.mediaLabel(), color = Color.White.copy(alpha = .56f), fontSize = 13.sp)
                 Text(result.overview.orEmpty(), maxLines = 3, overflow = TextOverflow.Ellipsis, color = Color.White.copy(alpha = .7f), modifier = Modifier.padding(top = 8.dp))
             }
-            SmallAction(if (favorite) "★" else "☆", onFavorite)
         }
+      }
+      Spacer(Modifier.width(12.dp))
+      SmallAction(if (favorite) "★" else "☆", onFavorite,
+          if (favorite) "Remove from favorites" else "Add to favorites")
     }
 }
 
@@ -542,10 +582,9 @@ private fun Poster(path: String?, description: String, modifier: Modifier) {
 @Composable
 private fun FocusSurface(modifier: Modifier = Modifier, onClick: () -> Unit, content: @Composable () -> Unit) {
     var focused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (focused) 1.055f else 1f, label = "focus scale")
     val borderColor by animateColorAsState(if (focused) MaterialTheme.colorScheme.primary else Color.Transparent, label = "focus border")
     Surface(
-        modifier = modifier.scale(scale).onFocusChanged { focused = it.isFocused }.border(2.dp, borderColor, RoundedCornerShape(14.dp)).clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).focusable(),
+        modifier = modifier.onFocusChanged { focused = it.isFocused }.border(2.dp, borderColor, RoundedCornerShape(14.dp)).clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick),
         color = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(14.dp),
         content = content,
@@ -561,7 +600,7 @@ private fun FocusButton(label: String, modifier: Modifier = Modifier, selected: 
     )
     val foreground = if (focused) Color.Black else Color.White
     Surface(
-        modifier = modifier.onFocusChanged { focused = it.isFocused }.clip(RoundedCornerShape(50)).clickable(onClick = onClick).focusable(),
+        modifier = modifier.onFocusChanged { focused = it.isFocused }.clip(RoundedCornerShape(50)).clickable(onClick = onClick),
         color = background,
         contentColor = foreground,
         shape = RoundedCornerShape(50),
@@ -569,10 +608,10 @@ private fun FocusButton(label: String, modifier: Modifier = Modifier, selected: 
 }
 
 @Composable
-private fun SmallAction(symbol: String, onClick: () -> Unit) {
+private fun SmallAction(symbol: String, onClick: () -> Unit, label: String = symbol) {
     var focused by remember { mutableStateOf(false) }
     Surface(
-        modifier = Modifier.size(44.dp).onFocusChanged { focused = it.isFocused }.clip(CircleShape).clickable(onClick = onClick).focusable(),
+        modifier = Modifier.size(44.dp).semantics { contentDescription = label }.onFocusChanged { focused = it.isFocused }.clip(CircleShape).clickable(onClick = onClick),
         color = if (focused) Color.White else Color.White.copy(alpha = .08f),
         contentColor = if (focused) Color.Black else Color.White,
         shape = CircleShape,

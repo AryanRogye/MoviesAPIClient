@@ -28,11 +28,6 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
 
-    // Bundles Mozilla's own Gecko engine instead of relying on the system
-    // WebView provider. On Fire TV that provider is Amazon's forked AWV build,
-    // which has real engine bugs (broken vh/percentage-height viewport unit
-    // resolution) that a bundled, independently-maintained engine avoids.
-    implementation("org.mozilla.geckoview:geckoview:155.0.20260903215306")
 }
 
 android {

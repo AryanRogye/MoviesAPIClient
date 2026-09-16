@@ -8,11 +8,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
 import android.graphics.Paint
-import android.net.Uri
-import android.os.Handler
-import android.os.Looper
 import android.os.SystemClock
-import android.util.Log
 import android.view.KeyEvent
 import android.view.Gravity
 import android.view.MotionEvent
@@ -34,9 +30,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,23 +43,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import org.mozilla.geckoview.AllowOrDeny
-import org.mozilla.geckoview.ContentBlocking
-import org.mozilla.geckoview.GeckoResult
-import org.mozilla.geckoview.GeckoRuntime
-import org.mozilla.geckoview.GeckoRuntimeSettings
-import org.mozilla.geckoview.GeckoSession
-import org.mozilla.geckoview.GeckoSessionSettings
-import org.mozilla.geckoview.GeckoView
-import org.mozilla.geckoview.PanZoomController
-import org.mozilla.geckoview.ScreenLength
-import org.mozilla.geckoview.WebRequestError
 
-private const val TAG = "MoviesGeckoView"
-private const val EXTENSION_ID = "movies-player@aryanrogye.com"
-private const val EXTENSION_LOCATION = "resource://android/assets/extensions/player/"
-
-enum class PlaybackEngine { GECKO, NATIVE_WEBVIEW }
 
 @Composable
 fun MediaWebView(
@@ -85,409 +63,7 @@ fun MediaWebView(
     )
 }
 
-/**
- * Fire TV has very little headroom for a full desktop-style browser process
- * graph. Gecko's default Fission configuration was creating tab processes for
- * each embedded frame, causing sustained major page faults and ultimately an
- * Android input-dispatch ANR. Runtime-only settings must be supplied before
- * Gecko starts, so this provider creates exactly one tuned runtime per app
- * process rather than using GeckoRuntime.getDefault().
- */
-private object MoviesGeckoRuntime {
-    private var runtime: GeckoRuntime? = null
-
-    fun get(context: Context): GeckoRuntime = synchronized(this) {
-        runtime ?: GeckoRuntime.create(
-            context.applicationContext,
-            GeckoRuntimeSettings.Builder()
-                .fissionEnabled(false)
-                .lowMemoryDetection(true)
-                .extensionsProcessEnabled(false)
-                .remoteDebuggingEnabled(false)
-                .consoleOutput(false)
-                .glMsaaLevel(0)
-                .doubleTapZoomingEnabled(false)
-                .inputAutoZoomEnabled(false)
-                .forceUserScalableEnabled(false)
-                .contentBlocking(
-                    ContentBlocking.Settings.Builder()
-                        .cookieBehavior(ContentBlocking.CookieBehavior.ACCEPT_ALL)
-                        .enhancedTrackingProtectionLevel(ContentBlocking.EtpLevel.NONE)
-                        .antiTracking(ContentBlocking.AntiTracking.NONE)
-                        .build(),
-                )
-                .build(),
-        ).also { runtime = it }
-    }
-}
-
-@Composable
-private fun GeckoMediaWebView(
-    url: String,
-    reloadKey: Int,
-    blockingService: AndroidBlockingService,
-    modifier: Modifier = Modifier,
-    onExitFocus: () -> Unit,
-    onError: (String) -> Unit,
-) {
-    val context = LocalContext.current
-    val activity = remember(context) { context.findActivity() }
-    var progress by remember { mutableFloatStateOf(0f) }
-    var isLoading by remember { mutableStateOf(false) }
-    var isFullscreen by remember { mutableStateOf(false) }
-    var geckoSession by remember { mutableStateOf<GeckoSession?>(null) }
-    var rootPlayerContainer by remember { mutableStateOf<FrameLayout?>(null) }
-    var cursorOverlayView by remember { mutableStateOf<TvCursorOverlayView?>(null) }
-    var geckoViewRef by remember { mutableStateOf<GeckoView?>(null) }
-    var documentHost by remember { mutableStateOf<String?>(null) }
-    var recoveryGeneration by remember { mutableStateOf(0) }
-    var recoveryAttempts by remember { mutableStateOf(0) }
-    var restoreFullscreenAfterRecovery by remember { mutableStateOf(false) }
-    fun updateFullscreen(fullScreen: Boolean) {
-        isFullscreen = fullScreen
-        cursorOverlayView?.setFullscreenState(fullScreen)
-        activity?.let { act ->
-            val playerView = rootPlayerContainer ?: return@let
-            val decorGroup = act.window.decorView as? ViewGroup ?: return@let
-            val controller = WindowInsetsControllerCompat(act.window, act.window.decorView)
-
-            if (fullScreen) {
-                (playerView.parent as? ViewGroup)?.removeView(playerView)
-                val params = FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-                playerView.translationZ = 9999f
-                decorGroup.addView(playerView, params)
-
-                WindowCompat.setDecorFitsSystemWindows(act.window, false)
-                controller.hide(WindowInsetsCompat.Type.systemBars())
-                controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                // The cursor owns D-pad input and must also own focus so it is
-                // drawn above Gecko's TextureView in fullscreen.
-                playerView.post { cursorOverlayView?.requestFocus() }
-            } else {
-                (playerView.parent as? ViewGroup)?.removeView(playerView)
-                playerView.translationZ = 0f
-                // Let Compose re-attach playerView in update/AndroidView
-                WindowCompat.setDecorFitsSystemWindows(act.window, true)
-                controller.show(WindowInsetsCompat.Type.systemBars())
-                controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
-                playerView.post { cursorOverlayView?.requestFocus() }
-            }
-        }
-    }
-
-    fun recoverSession(session: GeckoSession, reason: String) {
-        // A content process is allowed to die independently of the app process.
-        // Reusing that session is unsupported, but Firefox's Android engine keeps
-        // its runtime and creates/restores a fresh session. Limit this to one
-        // automatic attempt per requested URL so a bad provider cannot loop
-        // forever and make the TV UI unresponsive.
-        if (session !== geckoSession) return
-        if (recoveryAttempts >= MAX_AUTOMATIC_SESSION_RECOVERIES) {
-            onError("GeckoView process $reason after retrying the player")
-            return
-        }
-        recoveryAttempts += 1
-        restoreFullscreenAfterRecovery = isFullscreen
-        if (isFullscreen) updateFullscreen(false)
-        Log.w(TAG, "GeckoView process $reason; recreating session (attempt $recoveryAttempts)")
-        recoveryGeneration += 1
-    }
-
-    BackHandler(enabled = isFullscreen) {
-        geckoSession?.exitFullScreen()
-    }
-
-    val runtime = remember(context) {
-        MoviesGeckoRuntime.get(context)
-    }
-
-    LaunchedEffect(runtime) {
-        Log.i(TAG, "Ensuring built-in WebExtension: $EXTENSION_LOCATION")
-        runtime.webExtensionController
-            .ensureBuiltIn(EXTENSION_LOCATION, EXTENSION_ID)
-            .accept(
-                { ext ->
-                    Log.i(TAG, "WebExtension installed: ${ext?.id}")
-                },
-                { err ->
-                    Log.e(TAG, "Failed to register player WebExtension", err)
-                }
-            )
-    }
-
-    Box(modifier = modifier.background(Color.Black)) {
-        key(recoveryGeneration) {
-            AndroidView<FrameLayout>(
-                modifier = Modifier.fillMaxSize(),
-                factory = { ctx ->
-                val parentWrapper = FrameLayout(ctx)
-                val playerContainer = FrameLayout(ctx).apply {
-                    setBackgroundColor(AndroidColor.BLACK)
-                    // The remote cursor is a child of this view. Prefer it over the
-                    // container itself; otherwise FrameLayout claims focus first and
-                    // the overlay never draws or receives D-pad events.
-                    descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
-                }
-                rootPlayerContainer = playerContainer
-
-                // TextureView keeps the compositor surface alive while fullscreen
-                // reparents the player into the activity decor view on Fire OS.
-                val gv = GeckoView(ctx).apply {
-                    setViewBackend(GeckoView.BACKEND_TEXTURE_VIEW)
-                    // Remote input is mediated by TvCursorOverlayView. Gecko tries
-                    // to claim Android focus again once an iframe/player finishes
-                    // loading, which otherwise makes the cursor disappear.
-                    isFocusable = false
-                    isFocusableInTouchMode = false
-                    geckoViewRef = this
-
-                    val settings = GeckoSessionSettings().apply {
-                        configureSessionSettings(this, url)
-                    }
-                    val session = GeckoSession(settings).apply {
-                        contentDelegate = object : GeckoSession.ContentDelegate {
-                            override fun onFocusRequest(session: GeckoSession) {
-                                // Keep focus (and therefore the visible cursor) on
-                                // the TV overlay. Select is still forwarded to Gecko
-                                // as a touch event by the overlay.
-                                cursorOverlayView?.post { cursorOverlayView?.requestFocus() }
-                            }
-
-                            override fun onFullScreen(session: GeckoSession, fullScreen: Boolean) {
-                                Log.i(TAG, "onFullScreen: $fullScreen")
-                                updateFullscreen(fullScreen)
-                            }
-
-                            override fun onCrash(session: GeckoSession) {
-                                Handler(Looper.getMainLooper()).post {
-                                    recoverSession(session, "crashed")
-                                }
-                            }
-
-                            override fun onKill(session: GeckoSession) {
-                                Handler(Looper.getMainLooper()).post {
-                                    recoverSession(session, "was killed")
-                                }
-                            }
-                        }
-
-                        // GeckoView deliberately has no default permission UI. Video
-                        // hosts therefore receive a denial unless the embedding app
-                        // handles these requests, which was the source of the black
-                        // player and the "No listener for GeckoView:ContentPermission"
-                        // errors in logcat. This session only permits capabilities
-                        // required to start protected/audible playback; camera,
-                        // microphone, location, notifications, and local-network
-                        // access remain denied.
-                        permissionDelegate = object : GeckoSession.PermissionDelegate {
-                            override fun onContentPermissionRequest(
-                                session: GeckoSession,
-                                permission: GeckoSession.PermissionDelegate.ContentPermission,
-                            ): GeckoResult<Int> {
-                                val allow = permission.permission ==
-                                    GeckoSession.PermissionDelegate.PERMISSION_AUTOPLAY_AUDIBLE ||
-                                    permission.permission ==
-                                    GeckoSession.PermissionDelegate.PERMISSION_AUTOPLAY_INAUDIBLE ||
-                                    permission.permission ==
-                                    GeckoSession.PermissionDelegate.PERMISSION_MEDIA_KEY_SYSTEM_ACCESS ||
-                                    permission.permission ==
-                                    GeckoSession.PermissionDelegate.PERMISSION_PERSISTENT_STORAGE
-                                Log.i(
-                                    TAG,
-                                    "Content permission ${permission.permission} for ${permission.uri}: " +
-                                        if (allow) "allowed" else "denied",
-                                )
-                                return GeckoResult.fromValue(
-                                    if (allow) {
-                                        GeckoSession.PermissionDelegate.ContentPermission.VALUE_ALLOW
-                                    } else {
-                                        GeckoSession.PermissionDelegate.ContentPermission.VALUE_DENY
-                                    },
-                                )
-                            }
-                        }
-
-                        progressDelegate = object : GeckoSession.ProgressDelegate {
-                            override fun onPageStart(session: GeckoSession, pageUrl: String) {
-                                documentHost = runCatching { Uri.parse(pageUrl).host }.getOrNull()
-                                Log.d(TAG, "onPageStart: $pageUrl")
-                                isLoading = true
-                                progress = 0f
-                            }
-
-                            override fun onPageStop(session: GeckoSession, success: Boolean) {
-                                Log.d(TAG, "onPageStop: success=$success")
-                                isLoading = false
-                                cursorOverlayView?.post { cursorOverlayView?.requestFocus() }
-                            }
-
-                            override fun onProgressChange(session: GeckoSession, newProgress: Int) {
-                                progress = newProgress / 100f
-                                isLoading = newProgress < 100
-                            }
-                        }
-
-                        navigationDelegate = object : GeckoSession.NavigationDelegate {
-                            override fun onLoadRequest(
-                                session: GeckoSession,
-                                request: GeckoSession.NavigationDelegate.LoadRequest,
-                            ): GeckoResult<AllowOrDeny> {
-                                // Network filtering is intentionally disabled while
-                                // diagnosing Gecko playback stability. Let Gecko and
-                                // the provider handle every top-level navigation.
-                                return GeckoResult.fromValue(AllowOrDeny.ALLOW)
-                            }
-
-                            override fun onSubframeLoadRequest(
-                                session: GeckoSession,
-                                request: GeckoSession.NavigationDelegate.LoadRequest,
-                            ): GeckoResult<AllowOrDeny> {
-                                // Likewise, do not filter player iframes or their
-                                // network requests during this diagnostic build.
-                                return GeckoResult.fromValue(AllowOrDeny.ALLOW)
-                            }
-
-                            override fun onLoadError(session: GeckoSession, uri: String?, error: WebRequestError): GeckoResult<String> {
-                                Log.e(TAG, "Load error (${error.code}): $uri")
-                                onError("Load error (${error.code}): $uri")
-                                return GeckoResult.fromValue(null)
-                            }
-                        }
-
-                        open(runtime)
-                        // This is the one session the user is actively watching.
-                        // Gecko maps the high hint to Android service priority,
-                        // reducing the chance that Fire OS kills its content/media
-                        // process while the player is visible or reparented for
-                        // fullscreen.
-                        setPriorityHint(GeckoSession.PRIORITY_HIGH)
-                    }
-
-                    setSession(session)
-                    geckoSession = session
-                    session.loadUri(url)
-                }
-
-                val overlay = TvCursorOverlayView(
-                    ctx,
-                    inputViewProvider = { gv },
-                    onScroll = { delta ->
-                        geckoSession?.panZoomController?.scrollBy(
-                            ScreenLength.zero(),
-                            ScreenLength.fromPixels(delta),
-                            PanZoomController.SCROLL_BEHAVIOR_SMOOTH,
-                        )
-                    },
-                    onExitFullscreen = { geckoSession?.exitFullScreen() },
-                    onExitFocus = onExitFocus,
-                    isFullscreenProvider = { isFullscreen },
-                ).apply {
-                    cursorOverlayView = this
-                    translationZ = 100f
-                }
-
-                playerContainer.addView(gv, FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                ))
-                playerContainer.addView(overlay, FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                ))
-                // GeckoView is deliberately not focusable on TV: the overlay keeps
-                // the visible remote cursor and translates Select into touch events.
-                parentWrapper.post { overlay.requestFocus() }
-
-                parentWrapper.addView(playerContainer, FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                ))
-
-                parentWrapper.setTag(URL_KEY_TAG, MediaRequest(url, reloadKey))
-                parentWrapper.setTag(SESSION_KEY_TAG, gv.session)
-                parentWrapper.setTag(GECKO_VIEW_KEY_TAG, gv)
-                parentWrapper.post {
-                    if (restoreFullscreenAfterRecovery) {
-                        restoreFullscreenAfterRecovery = false
-                        updateFullscreen(true)
-                    }
-                }
-                parentWrapper
-            },
-            update = { parentWrapper ->
-                // Ensure playerContainer is inside parentWrapper if not fullscreen
-                val playerContainer = rootPlayerContainer
-                if (!isFullscreen && playerContainer != null && playerContainer.parent != parentWrapper) {
-                    (playerContainer.parent as? ViewGroup)?.removeView(playerContainer)
-                    parentWrapper.addView(playerContainer, FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    ))
-                }
-
-                val request = MediaRequest(url, reloadKey)
-                if (parentWrapper.getTag(URL_KEY_TAG) != request) {
-                    parentWrapper.setTag(URL_KEY_TAG, request)
-                    recoveryAttempts = 0
-                    geckoViewRef?.session?.let { session ->
-                        configureSessionSettings(session.settings, url)
-                        session.loadUri(url)
-                    }
-                }
-            },
-                onRelease = { parentWrapper ->
-                    val releasedSession = parentWrapper.getTag(SESSION_KEY_TAG) as? GeckoSession
-                    val releasedView = parentWrapper.getTag(GECKO_VIEW_KEY_TAG) as? GeckoView
-                    releasedView?.releaseSession()
-                    releasedSession?.close()
-                    if (geckoSession === releasedSession) geckoSession = null
-                    if (geckoViewRef === releasedView) geckoViewRef = null
-                },
-            )
-        }
-
-        if (isLoading) {
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier.fillMaxWidth().height(3.dp),
-                color = Color.Yellow,
-                trackColor = Color.Transparent,
-            )
-        }
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            activity?.let { act ->
-                val controller = WindowInsetsControllerCompat(act.window, act.window.decorView)
-                WindowCompat.setDecorFitsSystemWindows(act.window, true)
-                controller.show(WindowInsetsCompat.Type.systemBars())
-            }
-            rootPlayerContainer?.let { container ->
-                (container.parent as? ViewGroup)?.removeView(container)
-            }
-            geckoSession?.let { session ->
-                session.exitFullScreen()
-                session.stop()
-                session.loadUri("about:blank")
-                session.close()
-            }
-            geckoViewRef?.releaseSession()
-            geckoViewRef = null
-            cursorOverlayView = null
-            rootPlayerContainer = null
-            geckoSession = null
-        }
-    }
-}
-
 private const val URL_KEY_TAG = 0x4d415049
-private const val SESSION_KEY_TAG = 0x4d41504a
-private const val GECKO_VIEW_KEY_TAG = 0x4d41504b
-private const val MAX_AUTOMATIC_SESSION_RECOVERIES = 1
 
 /** A user-selected native WebView path for provider compatibility testing. */
 @SuppressLint("SetJavaScriptEnabled")
@@ -767,23 +343,6 @@ private fun playerUserAgent(url: String): String {
     }
 }
 
-private fun configureSessionSettings(settings: GeckoSessionSettings, url: String) {
-    val isDesktop = !url.contains("moviesapi.to") && !url.contains("moviesapi.vip")
-    settings.userAgentMode = if (isDesktop) {
-        GeckoSessionSettings.USER_AGENT_MODE_DESKTOP
-    } else {
-        GeckoSessionSettings.USER_AGENT_MODE_MOBILE
-    }
-    settings.viewportMode = if (isDesktop) {
-        GeckoSessionSettings.VIEWPORT_MODE_DESKTOP
-    } else {
-        GeckoSessionSettings.VIEWPORT_MODE_MOBILE
-    }
-    settings.userAgentOverride = playerUserAgent(url)
-    settings.useTrackingProtection = false
-    settings.suspendMediaWhenInactive = false
-}
-
 private fun Context.findActivity(): Activity? {
     var ctx = this
     while (ctx is ContextWrapper) {
@@ -798,7 +357,7 @@ private data class MediaRequest(val url: String, val reloadKey: Int)
 /**
  * Overlay View rendered directly above SurfaceView (translationZ = 100f).
  * Intercepts D-pad keys, coordinates cursor drawing, handles edge scrolling,
- * and synthesizes touch events directly into GeckoView.
+ * and synthesizes touch events into the fullscreen player.
  */
 private class TvCursorOverlayView(
     context: Context,
@@ -898,7 +457,7 @@ private class TvCursorOverlayView(
         if (focused) {
             releasingFocusToApp = false
         } else if (!releasingFocusToApp && isAttachedToWindow) {
-            // Gecko may request focus after handling the synthetic Select touch.
+            // The player may request focus after handling the synthetic Select touch.
             // Keep remote input and the visible cursor on this overlay unless the
             // user explicitly navigated back to the native controls.
             post { requestFocus() }
