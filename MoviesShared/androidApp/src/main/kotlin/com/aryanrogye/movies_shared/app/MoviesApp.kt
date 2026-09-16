@@ -69,10 +69,7 @@ import com.aryanrogye.movies_shared.network.KTDisplayServer
 import com.aryanrogye.movies_shared.web.AndroidBlockingService
 import com.aryanrogye.movies_shared.web.BlockingStatus
 import com.aryanrogye.movies_shared.web.MediaWebView
-import com.aryanrogye.movies_shared.web.NativePlayer
 import com.aryanrogye.movies_shared.web.PlaybackEngine
-import com.aryanrogye.movies_shared.web.ResolvedStream
-import com.aryanrogye.movies_shared.web.StreamResolver
 import kotlinx.coroutines.launch
 
 private val AppColors = darkColorScheme(
@@ -239,20 +236,16 @@ private fun SettingsScreen(appState: MoviesAppState, blockingService: AndroidBlo
         )
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             FocusButton(
-                "Native Player",
-                selected = appState.playbackEngine == PlaybackEngine.NATIVE_PLAYER,
-            ) { appState.updatePlaybackEngine(PlaybackEngine.NATIVE_PLAYER) }
+                "Native WebView",
+                selected = appState.playbackEngine == PlaybackEngine.NATIVE_WEBVIEW,
+            ) { appState.updatePlaybackEngine(PlaybackEngine.NATIVE_WEBVIEW) }
             FocusButton(
                 "Gecko",
                 selected = appState.playbackEngine == PlaybackEngine.GECKO,
             ) { appState.updatePlaybackEngine(PlaybackEngine.GECKO) }
-            FocusButton(
-                "Native WebView",
-                selected = appState.playbackEngine == PlaybackEngine.NATIVE_WEBVIEW,
-            ) { appState.updatePlaybackEngine(PlaybackEngine.NATIVE_WEBVIEW) }
         }
         Text(
-            "Native Player resolves the embed to a direct stream and plays it with hardware decoding. Use Gecko/WebView only as fallback.",
+            "Native WebView uses the same engine as Silk and auto-refreshes once if a provider hangs on its first load.",
             color = Color.White.copy(alpha = .62f),
             modifier = Modifier.padding(top = 10.dp),
         )
@@ -353,37 +346,15 @@ private fun MovieDetail(appState: MoviesAppState, blocker: AndroidBlockingServic
                 )
                 Text("↑ controls", color = Color.White.copy(alpha = .5f))
             }
-            if (appState.playbackEngine == PlaybackEngine.NATIVE_PLAYER) {
-                ResolvingPlayer(
-                    embedUrl = url,
-                    reloadKey = reloadKey,
-                    blockingService = blocker,
-                    modifier = Modifier.fillMaxSize(),
-                    onExitFocus = { reloadFocus.requestFocus() },
-                    onError = appState::reportError,
-                    webViewFallback = {
-                        MediaWebView(
-                            engine = PlaybackEngine.GECKO,
-                            url = url,
-                            reloadKey = reloadKey,
-                            blockingService = blocker,
-                            modifier = Modifier.fillMaxSize(),
-                            onExitFocus = { reloadFocus.requestFocus() },
-                            onError = appState::reportError,
-                        )
-                    },
-                )
-            } else {
-                MediaWebView(
-                    engine = appState.playbackEngine,
-                    url = url,
-                    reloadKey = reloadKey,
-                    blockingService = blocker,
-                    modifier = Modifier.fillMaxSize(),
-                    onExitFocus = { reloadFocus.requestFocus() },
-                    onError = appState::reportError,
-                )
-            }
+            MediaWebView(
+                engine = appState.playbackEngine,
+                url = url,
+                reloadKey = reloadKey,
+                blockingService = blocker,
+                modifier = Modifier.fillMaxSize(),
+                onExitFocus = { reloadFocus.requestFocus() },
+                onError = appState::reportError,
+            )
         }
     } else {
         Hero(result, playLabel = "▶  Play Movie") { loaded = true }
@@ -436,37 +407,15 @@ private fun TvDetail(appState: MoviesAppState, blocker: AndroidBlockingService, 
                 )
                 Text("↑ controls", color = Color.White.copy(alpha = .5f))
             }
-            if (appState.playbackEngine == PlaybackEngine.NATIVE_PLAYER) {
-                ResolvingPlayer(
-                    embedUrl = tvUrl,
-                    reloadKey = reloadKey,
-                    blockingService = blocker,
-                    modifier = Modifier.fillMaxSize(),
-                    onExitFocus = { reloadFocus.requestFocus() },
-                    onError = appState::reportError,
-                    webViewFallback = {
-                        MediaWebView(
-                            engine = PlaybackEngine.GECKO,
-                            url = tvUrl,
-                            reloadKey = reloadKey,
-                            blockingService = blocker,
-                            modifier = Modifier.fillMaxSize(),
-                            onExitFocus = { reloadFocus.requestFocus() },
-                            onError = appState::reportError,
-                        )
-                    },
-                )
-            } else {
-                MediaWebView(
-                    engine = appState.playbackEngine,
-                    url = tvUrl,
-                    reloadKey = reloadKey,
-                    blockingService = blocker,
-                    modifier = Modifier.fillMaxSize(),
-                    onExitFocus = { reloadFocus.requestFocus() },
-                    onError = appState::reportError,
-                )
-            }
+            MediaWebView(
+                engine = appState.playbackEngine,
+                url = tvUrl,
+                reloadKey = reloadKey,
+                blockingService = blocker,
+                modifier = Modifier.fillMaxSize(),
+                onExitFocus = { reloadFocus.requestFocus() },
+                onError = appState::reportError,
+            )
         }
     } else {
         LazyColumn(Modifier.fillMaxSize()) {
@@ -481,82 +430,6 @@ private fun TvDetail(appState: MoviesAppState, blocker: AndroidBlockingService, 
                     onEpisode = { selectedEpisode = it },
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun ResolvingPlayer(
-    embedUrl: String,
-    reloadKey: Int,
-    blockingService: AndroidBlockingService,
-    modifier: Modifier = Modifier,
-    onExitFocus: () -> Unit,
-    onError: (String) -> Unit,
-    webViewFallback: @Composable () -> Unit,
-) {
-    val context = LocalContext.current
-    var stream by remember(embedUrl, reloadKey) { mutableStateOf<ResolvedStream?>(null) }
-    var resolving by remember(embedUrl, reloadKey) { mutableStateOf(true) }
-    var useFallback by remember(embedUrl, reloadKey) { mutableStateOf(false) }
-    var attempts by remember(embedUrl, reloadKey) { mutableIntStateOf(0) }
-
-    LaunchedEffect(embedUrl, reloadKey, attempts) {
-        resolving = true
-        useFallback = false
-        stream = null
-        val resolved = StreamResolver.resolve(context, embedUrl, blockingService)
-        if (resolved != null) {
-            stream = resolved
-        } else {
-            useFallback = true
-        }
-        resolving = false
-    }
-
-    when {
-        useFallback -> {
-            Column(modifier) {
-                Row(
-                    Modifier.padding(bottom = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        "Direct stream not found - WebView fallback",
-                        color = Color.White.copy(alpha = .6f),
-                        modifier = Modifier.weight(1f),
-                    )
-                    FocusButton("↻  Retry") { attempts++ }
-                }
-                Box(Modifier.fillMaxSize().weight(1f)) { webViewFallback() }
-            }
-        }
-        resolving || stream == null -> {
-            Column(
-                modifier.background(Color.Black).padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Text("Resolving stream…", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    "Extracting direct video (no full-page playback)",
-                    color = Color.White.copy(alpha = .6f),
-                    modifier = Modifier.padding(top = 8.dp, bottom = 20.dp),
-                )
-                FocusButton("Cancel (WebView)") { useFallback = true }
-            }
-        }
-        else -> {
-            NativePlayer(
-                stream = stream!!,
-                modifier = modifier,
-                onError = {
-                    // ExoPlayer errors (403/404/geoblock) -> offer WebView once.
-                    useFallback = true
-                    onError(it)
-                },
-            )
         }
     }
 }
