@@ -64,7 +64,7 @@ private const val TAG = "MoviesGeckoView"
 private const val EXTENSION_ID = "movies-player@aryanrogye.com"
 private const val EXTENSION_LOCATION = "resource://android/assets/extensions/player/"
 
-enum class PlaybackEngine { GECKO, NATIVE_WEBVIEW }
+enum class PlaybackEngine { NATIVE_PLAYER, GECKO, NATIVE_WEBVIEW }
 
 @Composable
 fun MediaWebView(
@@ -77,6 +77,17 @@ fun MediaWebView(
     onError: (String) -> Unit,
 ) {
     when (engine) {
+        PlaybackEngine.NATIVE_PLAYER -> GeckoMediaWebView(
+            // NATIVE_PLAYER is handled by ResolvingPlayer in MoviesApp and
+            // never reaches here. Fall through to Gecko so previews don't crash
+            // if someone calls MediaWebView directly with NATIVE_PLAYER.
+            url = url,
+            reloadKey = reloadKey,
+            blockingService = blockingService,
+            modifier = modifier,
+            onExitFocus = onExitFocus,
+            onError = onError,
+        )
         PlaybackEngine.GECKO -> GeckoMediaWebView(
             url = url,
             reloadKey = reloadKey,
