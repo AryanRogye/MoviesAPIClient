@@ -36,6 +36,7 @@ data class ResolvedStream(
     val origin: String?,
     val userAgent: String,
     val isHls: Boolean,
+    val cookies: String? = null,
 )
 
 object StreamResolver {
@@ -71,25 +72,43 @@ object StreamResolver {
 
         var webView: WebView? = null
         val mainHandler = Handler(Looper.getMainLooper())
+        var tryParseApiJson: ((String) -> Unit)? = null
 
         fun candidateFound(rawUrl: String, fromApiJson: String? = null) {
             var url = rawUrl.trim()
             if (url.startsWith("blob:") || url.startsWith("data:")) return
+            // Never hand the JSON API itself to ExoPlayer - it returns
+            // application/json, which surfaces as "source error". Only the
+            // parsed playlist/mp4 inside it is playable.
+            if (url.contains("/api/b/") && fromApiJson == null) {
+                tryParseApiJson?.invoke(url)
+                return
+            }
             // Resolve relative URLs against the embed page.
             if (url.startsWith("/")) {
                 val base = Uri.parse(embedUrl)
                 url = "${base.scheme}://${base.host}$url"
             }
             if (!looksLikeStream(url) && fromApiJson == null) return
-            Log.i(TAG, "Stream found: $url")
-            complete(ResolvedStream(url, referer, origin, userAgent, url.contains("m3u8")))
+            // Snapshot WebView cookies: stream CDNs often validate the same
+            // session/Cloudflare cookie the embed page set.
+            val cookies = runCatching {
+                CookieManager.getInstance().getCookie(url)
+                    ?: CookieManager.getInstance().getCookie(embedUrl)
+            }.getOrNull()
+            Log.i(TAG, "Stream found: $url (via ${fromApiJson ?: "network"})")
+            complete(ResolvedStream(url, referer, origin, userAgent, url.lowercase().contains("m3u8"), cookies))
         }
 
         // VidLink's player calls an internal JSON API that lists every quality.
         // Fetch it directly (off the UI thread) instead of rendering video in JS.
-        fun tryParseApiJson(apiUrl: String) {
+        tryParseApiJson = fun(apiUrl: String) {
             Thread {
                 runCatching {
+                    val webCookies = runCatching {
+                        CookieManager.getInstance().getCookie(apiUrl)
+                            ?: CookieManager.getInstance().getCookie(embedUrl)
+                    }.getOrNull()
                     val conn = (URL(apiUrl).openConnection() as HttpURLConnection).apply {
                         connectTimeout = 8000
                         readTimeout = 8000
@@ -97,12 +116,22 @@ object StreamResolver {
                         origin?.let { setRequestProperty("Origin", it) }
                         setRequestProperty("User-Agent", userAgent)
                         setRequestProperty("Accept", "application/json,*/*")
+                        if (!webCookies.isNullOrEmpty()) setRequestProperty("Cookie", webCookies)
+                    }
+                    val code = conn.responseCode
+                    if (code != HttpURLConnection.HTTP_OK) {
+                        Log.w(TAG, "api/b returned HTTP $code for $apiUrl")
+                        return@runCatching
                     }
                     val body = conn.inputStream.bufferedReader().use { it.readText() }
-                    extractBestStreamFromJson(body)?.let { best ->
+                    Log.d(TAG, "api/b body ${body.length} chars: ${body.take(300)}")
+                    val best = extractBestStreamFromJson(body)
+                    if (best != null) {
                         mainHandler.post { candidateFound(best, fromApiJson = apiUrl) }
+                    } else {
+                        Log.w(TAG, "api/b had no playable stream: ${body.take(500)}")
                     }
-                }
+                }.onFailure { Log.w(TAG, "api/b fetch failed: $apiUrl", it) }
             }.start()
         }
 
@@ -155,13 +184,16 @@ object StreamResolver {
                 ): WebResourceResponse? {
                     val url = request.url.toString()
                     val host = request.url.host?.lowercase()
+                    // VidLink JSON API first - it is NOT playable itself, only
+                    // the playlist/mp4 inside it is. candidateFound re-routes
+                    // here too as a safety net.
+                    if (url.contains("/api/b/")) {
+                        tryParseApiJson(url)
+                        return null
+                    }
                     // Let the stream + its playlist segments through untouched.
                     if (looksLikeStream(url)) {
                         candidateFound(url)
-                        return null
-                    }
-                    if (url.contains("/api/b/")) {
-                        tryParseApiJson(url)
                         return null
                     }
                     // Block ads/trackers/popups during resolve; keep provider +
@@ -261,9 +293,10 @@ object StreamResolver {
     private fun looksLikeStream(url: String): Boolean {
         val lower = url.lowercase()
         if (lower.startsWith("blob:") || lower.startsWith("data:")) return false
+        // NOTE: /api/b/ is deliberately excluded - it returns JSON, not video.
+        // It is handled via tryParseApiJson instead.
         return lower.contains(".m3u8") || lower.contains(".mpd") ||
-            (lower.contains(".mp4") && !lower.contains("thumbnail")) ||
-            lower.contains("/api/b/")
+            (lower.contains(".mp4") && !lower.contains("thumbnail"))
     }
 
     /**
