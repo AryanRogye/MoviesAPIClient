@@ -158,7 +158,7 @@ class MoviesAppState(context: Context) {
 
     private fun readPlaybackEngine(): PlaybackEngine {
         val saved = preferences.getString(PLAYBACK_ENGINE, null)
-        return PlaybackEngine.entries.firstOrNull { it.name == saved } ?: PlaybackEngine.GECKO
+        return PlaybackEngine.entries.firstOrNull { it.name == saved } ?: PlaybackEngine.NATIVE_PLAYER
     }
 
     private companion object {
