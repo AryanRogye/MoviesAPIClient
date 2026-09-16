@@ -10,12 +10,17 @@ kotlin {
     listOf(
         iosX64(),
         iosArm64(),
-        iosSimulatorArm64()
+        iosSimulatorArm64(),
     ).forEach { iosTarget ->
         iosTarget.binaries.framework {
             baseName = "SharedLogic"
             isStatic = true
         }
+    }
+
+    macosArm64().binaries.framework {
+        baseName = "SharedLogic"
+        isStatic = true
     }
 
     android {
@@ -48,6 +53,10 @@ kotlin {
         }
 
         iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
+        }
+
+        macosMain.dependencies {
             implementation(libs.ktor.client.darwin)
         }
 

@@ -46,43 +46,55 @@ struct TVDetailView: View {
     @State private var tvUrl: URL?
     @State private var reloadID = UUID()
 
+    @State private var hideSeasonsAndEpisodes: Bool = false
+
     var body: some View {
-        ScrollView {
-            if let tvUrl {
+        GeometryReader { geometry in
+            ScrollView {
+                if let tvUrl {
 #if os(iOS)
-                GeometryReader { proxy in
+                    GeometryReader { proxy in
+                        EmbeddedMovieView(url: tvUrl)
+                            .id(reloadID)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 200)
+                            .padding(.horizontal, 10)
+                    }
+                    .frame(height: 200)
+#elseif os(macOS)
                     EmbeddedMovieView(url: tvUrl)
                         .id(reloadID)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 200)
+                        .frame(
+                            height: hideSeasonsAndEpisodes
+                            ? geometry.size.height
+                            : 400
+                        )
                         .padding(.horizontal, 10)
-                }
-                .frame(height: 200)
-#elseif os(macOS)
-                EmbeddedMovieView(url: tvUrl)
-                    .id(reloadID)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 200)
-                    .padding(.horizontal, 10)
+
 #endif
-            } else {
-                EpisodeImageView(
-                    result: result,
-                    tvShow: tvShow
-                )
+                } else {
+                    EpisodeImageView(
+                        result: result,
+                        tvShow: tvShow
+                    )
+                }
+
+                if !hideSeasonsAndEpisodes {
+                    SeasonsView(
+                        tvShow: tvShow,
+                        isLoadingSeason: isLoadingSeason,
+                        selectedSeasonNumber: $selectedSeasonNumber
+                    )
+
+                    EpisodesView(
+                        seasonInfo: seasonInfo,
+                        selectedEpisode: $selectedEpisode
+                    )
+                }
             }
-
-            SeasonsView(
-                tvShow: tvShow,
-                isLoadingSeason: isLoadingSeason,
-                selectedSeasonNumber: $selectedSeasonNumber
-            )
-
-            EpisodesView(
-                seasonInfo: seasonInfo,
-                selectedEpisode: $selectedEpisode
-            )
         }
+        .scrollDisabled(hideSeasonsAndEpisodes)
         .alert(isPresented: $showError) {
             Alert(
                 title: Text("Error"),
@@ -118,6 +130,16 @@ struct TVDetailView: View {
         }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
+#if os(macOS)
+                Button {
+                    withAnimation(.spring) {
+                        hideSeasonsAndEpisodes.toggle()
+                    }
+                } label: {
+                    Image(systemName: hideSeasonsAndEpisodes ? "eye.slash" : "eye")
+                }
+#endif
+
                 Picker("Server", selection: $displayServer) {
                     ForEach(KTDisplayServer.entries, id: \.self) { server in
                         Text(server.rawValue)
