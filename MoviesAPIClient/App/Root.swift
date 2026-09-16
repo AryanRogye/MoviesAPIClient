@@ -11,6 +11,7 @@ struct Root: View {
 
     private enum TabID: Hashable {
         case home
+        case history
         case settings
         case search
     }
@@ -31,6 +32,12 @@ struct Root: View {
                     Tab("Home", systemImage: "house", value: .home) {
                         NavigationStack {
                             Home()
+                        }
+                    }
+
+                    Tab("History", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90", value: .history) {
+                        NavigationStack {
+                            HistoryView()
                         }
                     }
 

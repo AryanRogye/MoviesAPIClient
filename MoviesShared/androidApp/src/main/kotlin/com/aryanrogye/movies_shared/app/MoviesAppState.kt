@@ -8,6 +8,9 @@ import androidx.compose.runtime.setValue
 import com.aryanrogye.movies_shared.BuildConfig
 import com.aryanrogye.movies_shared.data.Favorite
 import com.aryanrogye.movies_shared.data.FavoritesRepository
+import com.aryanrogye.movies_shared.data.HistoryRepository
+import com.aryanrogye.movies_shared.data.WatchHistory
+import kotlinx.coroutines.CancellationException
 import com.aryanrogye.movies_shared.models.KTMediaType
 import com.aryanrogye.movies_shared.models.KTSearchResult
 import com.aryanrogye.movies_shared.models.KTSeasonInfo
@@ -15,21 +18,25 @@ import com.aryanrogye.movies_shared.models.KTTVShow
 import com.aryanrogye.movies_shared.network.KTDisplayServer
 import com.aryanrogye.movies_shared.network.TMDBClient
 
-enum class MainTab { HOME, SEARCH, SETTINGS }
+enum class MainTab { HOME, HISTORY, SEARCH, SETTINGS }
 enum class LibraryFilter { ALL, TV, MOVIES }
 
 sealed interface AppDestination {
     data class Main(val tab: MainTab) : AppDestination
-    data class Detail(val result: KTSearchResult) : AppDestination
+    data class Detail(val result: KTSearchResult, val history: WatchHistory? = null) : AppDestination
 }
 
 class MoviesAppState(context: Context) {
     private val tmdb = TMDBClient()
     private val favoritesRepository = FavoritesRepository(context)
+    private val historyRepository = HistoryRepository(context)
     private val token = BuildConfig.TMDB_API_READ_ACCESS_TOKEN.trim()
     private val preferences = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
     val favorites = mutableStateListOf<Favorite>().apply { addAll(favoritesRepository.load()) }
+    val history = mutableStateListOf<WatchHistory>().apply { addAll(historyRepository.load()) }
+    var includeAdult by mutableStateOf(preferences.getBoolean("include_adult", false))
+        private set
     var searchResults by mutableStateOf<List<KTSearchResult>>(emptyList())
         private set
     var destination by mutableStateOf<AppDestination>(AppDestination.Main(MainTab.HOME))
@@ -50,19 +57,51 @@ class MoviesAppState(context: Context) {
             searchResults = emptyList()
             return
         }
-        runBusy { searchResults = tmdb.search(trimmed, tokenOrThrow()).results }
+        runBusy { searchResults = tmdb.search(trimmed, tokenOrThrow(), includeAdult).results }
     }
 
     suspend fun openFavorite(favorite: Favorite) {
         returnTab = (destination as? AppDestination.Main)?.tab ?: MainTab.HOME
         runBusy {
-            val result = tmdb.search(favorite.name, tokenOrThrow()).results.firstOrNull { it.id == favorite.id }
+            val result = tmdb.search(favorite.name, tokenOrThrow(), includeAdult).results.firstOrNull {
+                it.id == favorite.id && it.mediaType.rawValue == favorite.mediaType
+            }
             if (result == null) error = "Could not find ${favorite.name} on TMDB."
             else destination = AppDestination.Detail(result)
         }
     }
 
     suspend fun tvInfo(id: Int): KTTVShow? = runBusyResult { tmdb.infoOnTV(id, tokenOrThrow()) }
+
+    suspend fun openHistory(item: WatchHistory) {
+        runBusy {
+            val type = if (item.season == null) KTMediaType.MOVIE else KTMediaType.TV
+            val result = tmdb.search(item.name, tokenOrThrow(), includeAdult).results
+                .firstOrNull { it.id == item.resultId && it.mediaType == type }
+            if (result == null) error = "Could not find ${item.name} on TMDB."
+            else {
+                returnTab = MainTab.HISTORY
+                destination = AppDestination.Detail(result, item)
+            }
+        }
+    }
+
+    fun recordWatch(result: KTSearchResult, season: Int? = null, episode: Int? = null) {
+        val item = WatchHistory(result.id, result.name ?: result.title.orEmpty(), result.posterPath, season, episode)
+        history.removeAll { it.key == item.key }
+        history.add(0, item)
+        historyRepository.save(history)
+    }
+
+    fun removeHistory(item: WatchHistory) {
+        history.removeAll { it.key == item.key }
+        historyRepository.save(history)
+    }
+
+    fun updateIncludeAdult(value: Boolean) {
+        includeAdult = value
+        preferences.edit().putBoolean("include_adult", value).apply()
+    }
 
     suspend fun seasonInfo(id: Int, season: Int): KTSeasonInfo? =
         runBusyResult { tmdb.seasonInfo(id, season, tokenOrThrow()) }
@@ -123,6 +162,8 @@ class MoviesAppState(context: Context) {
         isBusy = true
         try {
             block()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (throwable: Throwable) {
             error = throwable.message ?: "Unknown error"
         } finally {
@@ -135,6 +176,8 @@ class MoviesAppState(context: Context) {
         isBusy = true
         return try {
             block()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (throwable: Throwable) {
             error = throwable.message ?: "Unknown error"
             null

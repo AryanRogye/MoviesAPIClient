@@ -6,19 +6,36 @@
 //
 
 import SwiftUI
+import SwiftData
 import SharedLogic
+
 
 struct TVDetailView: View {
 
+    @Environment(TMDBManager.self) var tmdbManager
+    @Environment(\.modelContext) var modelContext
+
+    @Query var history: [History]
     @Binding var displayServer: KTDisplayServer
     let result: KTSearchResult
-    @Environment(TMDBManager.self) var tmdbManager
+
+    init(displayServer: Binding<KTDisplayServer>, result: KTSearchResult) {
+        self._displayServer = displayServer
+        self.result = result
+    }
+    init(displayServer: Binding<KTDisplayServer>, result: KTSearchResult, seasonNumber: Int, episodeNumber: Int) {
+        self._displayServer = displayServer
+        self.result = result
+        self._selectedSeasonNumber = .init(initialValue: seasonNumber)
+        self._selectedEpisodeNumber = .init(initialValue: episodeNumber)
+    }
 
     @State private var error: String?
     @State private var showError: Bool = false
 
     @State private var tvShow: KTTVShow?
     @State private var selectedSeasonNumber: Int? = nil
+    @State private var selectedEpisodeNumber: Int? = nil
 
     @State private var loadSeasonTask: Task<Void, Never>?
     @State private var isLoadingSeason = false
@@ -83,6 +100,7 @@ struct TVDetailView: View {
             if let newValue {
                 seasonInfo = nil
                 selectedEpisode = nil
+                selectedEpisodeNumber = nil
                 loadSeason(season: newValue)
             }
         }
@@ -91,6 +109,11 @@ struct TVDetailView: View {
                 self.tvUrl = nil
                 reloadID = UUID()
                 loadTVShow(season: selectedSeasonNumber, episode: Int(selectedEpisode.episodeNumber))
+            }
+        }
+        .task {
+            if let selectedSeasonNumber, let selectedEpisodeNumber {
+                loadSeason(season: selectedSeasonNumber, pickingEpisode: selectedEpisodeNumber)
             }
         }
         .toolbar {
@@ -131,6 +154,27 @@ struct TVDetailView: View {
             guard let url = URL(string: tvUrlString) else {
                 throw DisplayServerError.cantConstructURL
             }
+
+            if let history = history.first(where: {
+                $0.resultId == Int(result.id) &&
+                $0.mediaType == .episode &&
+                $0.season == season &&
+                $0.episode == episode
+            }) {
+                history.watchedAt = .now
+            } else {
+                let history = History(
+                    resultId: Int(result.id),
+                    name: result.name ?? result.title ?? "",
+                    mediaType: .episode,
+                    season: season,
+                    episode: episode,
+                    posterPath: result.posterPath
+                )
+
+                modelContext.insert(history)
+            }
+
             self.tvUrl = url
         } catch {
             self.error = error.localizedDescription
@@ -138,13 +182,21 @@ struct TVDetailView: View {
         }
     }
 
-    private func loadSeason(season: Int) {
+    private func loadSeason(season: Int, pickingEpisode: Int? = nil) {
         if isLoadingSeason { return }
         loadSeasonTask = Task {
             isLoadingSeason = true
             defer { isLoadingSeason = false }
             do {
                 seasonInfo = try await tmdbManager.seasonInfo(for: Int(result.id), seasonNumber: season)
+                if let pickingEpisode, let seasonInfo {
+                    for episode in seasonInfo.episodes {
+                        if (episode.episodeNumber == pickingEpisode) {
+                            self.selectedEpisode = episode
+                            return
+                        }
+                    }
+                }
             } catch {
                 self.error = error.localizedDescription
                 self.showError = true
@@ -336,7 +388,9 @@ private struct EpisodesView: View {
                     posterPath: "/lcQMvn9ZptPd3dxn0a17viRfi7Y.jpg",
                     overview: """
             Leo is an ordinary teenager who has moved into a high-tech "smart" house with his mother, inventor stepfather and Eddy, the computer that runs the house. Leo's life becomes less ordinary when, one day, he discovers a secret underground lab that houses three experiments: superhuman teenagers. The trio -- Adam, the strong one, Bree, the fast one and Chase, the smart one -- convinces Leo and his parents to let them leave their lab and join Leo at school, where they try to fit in while having to manage their unpredictable bionic strengths. As Leo figures out a way to keep his new pals' bionic abilities a secret, they help him build self-confidence.
-            """
+            """,
+                    releaseDate: nil,
+                    firstAirDate: nil
                 )
             )
             .environment(tmdbManager)

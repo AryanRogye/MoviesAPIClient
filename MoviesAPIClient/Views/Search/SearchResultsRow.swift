@@ -54,8 +54,20 @@ struct SearchResultsRow: View {
 
     private var description: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(result.name ?? result.title ?? "Unknown")
-                .font(.headline)
+            HStack {
+                Text(result.name ?? result.title ?? "Unknown")
+                    .font(.headline)
+                Spacer()
+
+                switch result.mediaType {
+                case .movie:
+                    Text(result.releaseDate?.prefix(4) ?? "")
+                case .tv:
+                    Text(result.firstAirDate?.prefix(4) ?? "")
+                default:
+                    EmptyView()
+                }
+            }
 
             Text(result.mediaType == .tv ? "TV Show" : "Movie")
                 .font(.caption)

@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Defaults
 import SharedLogic
 
 enum TMDBError: LocalizedError {
@@ -29,6 +30,12 @@ final class TMDBManager {
     private let tmdbClient = TMDBClient()
     private let token: String
     private(set) var searchResults: [KTSearchResult] = []
+
+    var includeAdult: Bool = Defaults[.includeAdult] {
+        didSet {
+            Defaults[.includeAdult] = includeAdult
+        }
+    }
 
     init() throws {
         guard let token = Bundle.main.object(
@@ -61,7 +68,7 @@ final class TMDBManager {
 
     /// Function to search for tv,movie,person
     public func search(_ text: String) async throws {
-        let results = try await tmdbClient.search(query: text, token: token)
+        let results = try await tmdbClient.search(query: text, token: token, includeAdult: includeAdult)
         self.searchResults = results.results
     }
 }

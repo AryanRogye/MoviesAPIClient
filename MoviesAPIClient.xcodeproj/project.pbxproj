@@ -6,6 +6,10 @@
 	objectVersion = 110;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		9BE2E9F1305A5D470059DA6C /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = 9BE2E9F0305A5D470059DA6C /* Defaults */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		9B6EBD9A3058AC960058478C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -64,6 +68,7 @@
 		9B6EBD893058AC940058478C /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
+				9BE2E9F1305A5D470059DA6C /* Defaults in Frameworks */,
 			);
 		};
 		9B6EBD963058AC960058478C /* Frameworks */ = {
@@ -117,6 +122,9 @@
 				9B6EBD8E3058AC940058478C /* MoviesAPIClient */,
 			);
 			name = MoviesAPIClient;
+			packageProductDependencies = (
+				9BE2E9F0305A5D470059DA6C /* Defaults */,
+			);
 			productName = MoviesAPIClient;
 			productReference = 9B6EBD8C3058AC940058478C /* MoviesAPIClient.app */;
 			productType = "com.apple.product-type.application";
@@ -195,6 +203,9 @@
 			);
 			mainGroup = 9B6EBD833058AC940058478C;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				9BE2E9EF305A5D470059DA6C /* XCRemoteSwiftPackageReference "Defaults" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9B6EBD8D3058AC940058478C /* Products */;
 			projectDirPath = "";
@@ -641,6 +652,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		9BE2E9EF305A5D470059DA6C /* XCRemoteSwiftPackageReference "Defaults" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/Defaults.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.0.9;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		9BE2E9F0305A5D470059DA6C /* Defaults */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9BE2E9EF305A5D470059DA6C /* XCRemoteSwiftPackageReference "Defaults" */;
+			productName = Defaults;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 9B6EBD843058AC940058478C /* Project object */;
 	validationLevel = 1;

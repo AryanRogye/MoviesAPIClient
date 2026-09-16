@@ -8,7 +8,9 @@ enum class KTDisplayServer(val rawValue: String) {
 
     VID_LINK("VidLink"),
 
-    CINE_SRC("CineSrc");
+    CINE_SRC("CineSrc"),
+
+    OneOneOneMovies("111movies");
 
     private val baseURL: String
         get() {
@@ -18,17 +20,20 @@ enum class KTDisplayServer(val rawValue: String) {
                 VID_SPARK -> "https://vidspark.to"
                 VID_LINK -> "https://vidlink.pro"
                 CINE_SRC -> "https://cinesrc.st/embed"
+                OneOneOneMovies -> "https://111movies.net"
             }
         }
 
     fun loadMovie(movieId: Int): String {
-        return "$baseURL/movie/$movieId"
+        return when (this) {
+            else -> "$baseURL/movie/$movieId"
+        }
     }
 
     fun loadTvShow(showId: Int, season: Int, episode: Int): String {
-        if (this == CINE_SRC) {
-            return "$baseURL/tv/$showId?s=$season&e=$episode"
+        return when (this) {
+            CINE_SRC -> "$baseURL/tv/$showId?s=$season&e=$episode"
+            else -> "$baseURL/tv/$showId/$season/$episode"
         }
-        return "$baseURL/tv/$showId/$season/$episode"
     }
 }

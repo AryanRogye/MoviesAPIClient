@@ -23,6 +23,8 @@ data class KTSearchResult(
     val name: String? = null,
     val posterPath: String? = null,
     val overview: String? = null,
+    val releaseDate: String? = null,
+    val firstAirDate: String? = null,
 )
 
 @Serializable

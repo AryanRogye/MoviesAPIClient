@@ -61,6 +61,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.aryanrogye.movies_shared.data.Favorite
+import com.aryanrogye.movies_shared.data.WatchHistory
+import android.text.format.DateUtils
 import com.aryanrogye.movies_shared.models.KTEpisode
 import com.aryanrogye.movies_shared.models.KTMediaType
 import com.aryanrogye.movies_shared.models.KTSearchResult
@@ -89,7 +91,7 @@ fun MoviesApp() {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             when (val destination = appState.destination) {
                 is AppDestination.Main -> MainShell(appState, blockingService, destination.tab)
-                is AppDestination.Detail -> DetailScreen(appState, blockingService, destination.result)
+                is AppDestination.Detail -> DetailScreen(appState, blockingService, destination.result, destination.history)
             }
             appState.error?.let { message ->
                 AlertDialog(
@@ -113,12 +115,14 @@ private fun MainShell(appState: MoviesAppState, blockingService: AndroidBlocking
             Text("MOVIES", fontWeight = FontWeight.Black, letterSpacing = 3.sp, modifier = Modifier.padding(12.dp))
             Spacer(Modifier.height(24.dp))
             NavButton("⌂  Home", selectedTab == MainTab.HOME) { appState.selectTab(MainTab.HOME) }
+            NavButton("↺  History", selectedTab == MainTab.HISTORY) { appState.selectTab(MainTab.HISTORY) }
             NavButton("⌕  Search", selectedTab == MainTab.SEARCH) { appState.selectTab(MainTab.SEARCH) }
             NavButton("⚙  Settings", selectedTab == MainTab.SETTINGS) { appState.selectTab(MainTab.SETTINGS) }
         }
         Box(Modifier.weight(1f).fillMaxHeight().padding(end = 28.dp)) {
             when (selectedTab) {
                 MainTab.HOME -> HomeScreen(appState)
+                MainTab.HISTORY -> HistoryScreen(appState)
                 MainTab.SEARCH -> SearchScreen(appState)
                 MainTab.SETTINGS -> SettingsScreen(appState, blockingService)
             }
@@ -212,9 +216,53 @@ private fun SearchScreen(appState: MoviesAppState) {
 }
 
 @Composable
+private fun HistoryScreen(appState: MoviesAppState) {
+    val scope = rememberCoroutineScope()
+    var resolving by remember { mutableStateOf<String?>(null) }
+    Column(Modifier.fillMaxSize()) {
+        ScreenTitle("History")
+        Spacer(Modifier.height(16.dp))
+        if (appState.history.isEmpty()) {
+            EmptyMessage("No Watch History", "Movies and episodes you watch will show up here.")
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(appState.history, key = { it.key }) { item ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        FocusSurface(modifier = Modifier.weight(1f), onClick = {
+                            if (resolving == null) scope.launch {
+                                resolving = item.key
+                                try { appState.openHistory(item) } finally { resolving = null }
+                            }
+                        }) {
+                            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Poster(item.posterPath, item.name, Modifier.width(48.dp).height(64.dp))
+                                Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+                                    Text(item.name, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    val media = if (item.season != null) "S${item.season} E${item.episode}" else "Movie"
+                                    Text("$media · ${DateUtils.getRelativeTimeSpanString(item.watchedAt)}", color = Color.White.copy(alpha = .6f))
+                                }
+                                Text(if (resolving == item.key) "Loading…" else "›")
+                            }
+                        }
+                        FocusButton("Remove", modifier = Modifier.padding(start = 10.dp)) { appState.removeHistory(item) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun SettingsScreen(appState: MoviesAppState, blockingService: AndroidBlockingService) {
     Column(Modifier.fillMaxSize()) {
         ScreenTitle("Settings")
+        Spacer(Modifier.height(20.dp))
+        Text("Search Settings", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+        FocusButton(
+            "Include Adult Content: ${if (appState.includeAdult) "On" else "Off"}",
+            selected = appState.includeAdult,
+            modifier = Modifier.padding(top = 12.dp),
+        ) { appState.updateIncludeAdult(!appState.includeAdult) }
         Spacer(Modifier.height(28.dp))
         Text(
             when (blockingService.status) {
@@ -264,7 +312,15 @@ private fun SearchResultRow(result: KTSearchResult, favorite: Boolean, onOpen: (
         Row(Modifier.height(142.dp).padding(8.dp)) {
             Poster(result.posterPath, result.displayName(), Modifier.width(84.dp).fillMaxHeight())
             Column(Modifier.weight(1f).padding(horizontal = 16.dp)) {
-                Text(result.displayName(), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(result.displayName(), fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    val year = when (result.mediaType) {
+                        KTMediaType.MOVIE -> result.releaseDate
+                        KTMediaType.TV -> result.firstAirDate
+                        else -> null
+                    }?.take(4).orEmpty()
+                    Text(year, modifier = Modifier.padding(start = 12.dp), color = Color.White.copy(alpha = .6f))
+                }
                 Text(result.mediaLabel(), color = Color.White.copy(alpha = .56f), fontSize = 13.sp)
                 Text(result.overview.orEmpty(), maxLines = 3, overflow = TextOverflow.Ellipsis, color = Color.White.copy(alpha = .7f), modifier = Modifier.padding(top = 8.dp))
             }
@@ -274,14 +330,14 @@ private fun SearchResultRow(result: KTSearchResult, favorite: Boolean, onOpen: (
 }
 
 @Composable
-private fun DetailScreen(appState: MoviesAppState, blocker: AndroidBlockingService, result: KTSearchResult) {
+private fun DetailScreen(appState: MoviesAppState, blocker: AndroidBlockingService, result: KTSearchResult, history: WatchHistory?) {
     BackHandler { appState.backTo() }
     Column(Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 20.dp)) {
         DetailToolbar(appState, onBack = { appState.backTo() })
         Spacer(Modifier.height(14.dp))
         when (result.mediaType) {
             KTMediaType.MOVIE -> MovieDetail(appState, blocker, result)
-            KTMediaType.TV -> TvDetail(appState, blocker, result)
+            KTMediaType.TV -> TvDetail(appState, blocker, result, history)
             KTMediaType.PERSON -> EmptyMessage("Not Yet Supported", "People pages are not available yet.")
         }
     }
@@ -310,6 +366,7 @@ private fun MovieDetail(appState: MoviesAppState, blocker: AndroidBlockingServic
     val reloadFocus = remember { FocusRequester() }
     val url = appState.displayServer.loadMovie(result.id)
     if (loaded) {
+        LaunchedEffect(result.id, url) { appState.recordWatch(result) }
         BackHandler { loaded = false }
         Column(Modifier.fillMaxSize()) {
             Row(
@@ -344,11 +401,12 @@ private fun MovieDetail(appState: MoviesAppState, blocker: AndroidBlockingServic
 }
 
 @Composable
-private fun TvDetail(appState: MoviesAppState, blocker: AndroidBlockingService, result: KTSearchResult) {
+private fun TvDetail(appState: MoviesAppState, blocker: AndroidBlockingService, result: KTSearchResult, history: WatchHistory?) {
     var show by remember { mutableStateOf<KTTVShow?>(null) }
     var selectedSeason by remember { mutableStateOf<Int?>(null) }
     var episodes by remember { mutableStateOf<List<KTEpisode>>(emptyList()) }
     var selectedEpisode by remember { mutableStateOf<KTEpisode?>(null) }
+    var pendingHistory by remember(result.id, history?.key) { mutableStateOf(history) }
     var reloadKey by remember { mutableIntStateOf(0) }
     val reloadFocus = remember { FocusRequester() }
 
@@ -356,14 +414,23 @@ private fun TvDetail(appState: MoviesAppState, blocker: AndroidBlockingService, 
         val tvShow = appState.tvInfo(result.id)
         show = tvShow
         if (selectedSeason == null && tvShow != null && tvShow.seasons.isNotEmpty()) {
-            selectedSeason = tvShow.seasons.firstOrNull { it.seasonNumber > 0 }?.seasonNumber
+            selectedSeason = history?.season ?: tvShow.seasons.firstOrNull { it.seasonNumber > 0 }?.seasonNumber
                 ?: tvShow.seasons.first().seasonNumber
         }
     }
 
     LaunchedEffect(selectedSeason) {
         selectedSeason?.let { season ->
+            selectedEpisode = null
+            episodes = emptyList()
             episodes = appState.seasonInfo(result.id, season)?.episodes.orEmpty()
+            pendingHistory?.let { saved ->
+                if (saved.season == season) {
+                    selectedEpisode = episodes.firstOrNull { it.episodeNumber == saved.episode }
+                    if (selectedEpisode == null) appState.reportError("This episode is no longer available on TMDB.")
+                    pendingHistory = null
+                }
+            }
         }
     }
 
@@ -371,6 +438,7 @@ private fun TvDetail(appState: MoviesAppState, blocker: AndroidBlockingService, 
     if (episode != null && selectedSeason != null) {
         BackHandler { selectedEpisode = null }
         val tvUrl = appState.displayServer.loadTvShow(result.id, selectedSeason!!, episode.episodeNumber)
+        LaunchedEffect(tvUrl) { appState.recordWatch(result, selectedSeason, episode.episodeNumber) }
         Column(Modifier.fillMaxSize()) {
             Row(
                 Modifier.padding(bottom = 10.dp),

@@ -6,10 +6,14 @@
 //
 
 import SwiftUI
+import SwiftData
 import SharedLogic
 
 struct MovieDetailView: View {
 
+    @Environment(\.modelContext) var modelContext
+
+    @Query var history: [History]
     @Binding var displayServer: KTDisplayServer
     let result: KTSearchResult
 
@@ -168,6 +172,25 @@ struct MovieDetailView: View {
             guard let url = URL(string: movieUrlString) else {
                 throw DisplayServerError.cantConstructURL
             }
+
+            if let history = history.first(where: {
+                $0.resultId == Int(result.id) &&
+                $0.mediaType == .movie
+            }) {
+                history.watchedAt = .now
+            } else {
+                let history = History(
+                    resultId: Int(result.id),
+                    name: result.title ?? result.name ?? "",
+                    mediaType: .movie,
+                    posterPath: result.posterPath
+                )
+
+                modelContext.insert(history)
+            }
+
+
+
             movieUrl = url
             hasLoadedMovie = true
         } catch {
@@ -231,7 +254,9 @@ private struct MovieImageView: View {
                     posterPath: "/bjiS5ipwxb9JFy3XRRN4OAilSeX.jpg",
                     overview: """
                 Fighting crime full-time as Spider-Man in a world that doesn't remember him—and the pressure of seeing his old friends move on without him—sparks a change in Peter Parker he may not have the power to control. But that transformation might also be the only thing that can stop a shocking new threat to the city and those he loves - a powerful villain no one can even see.
-                """
+                """,
+                    releaseDate: nil,
+                    firstAirDate: nil
                 )
             )
             .environment(tmdbManager)

@@ -28,10 +28,10 @@ class TMDBClient {
         }
     }
 
-    suspend fun search(query: String, token: String): KTSearchResponse {
+    suspend fun search(query: String, token: String, includeAdult: Boolean): KTSearchResponse {
         val response = client.get("https://api.themoviedb.org/3/search/multi") {
             parameter("query", query)
-            parameter("include_adult", true)
+            parameter("include_adult", includeAdult)
             parameter("language", "en-US")
             parameter("page", 1)
 
