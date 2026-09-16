@@ -74,10 +74,6 @@ class AndroidBlockingService(private val context: Context) {
                 childList: true, subtree: true, attributes: true, attributeFilter: ['srcdoc']
               });
               document.querySelectorAll('iframe').forEach(frame => { if (isSuspicious(frame)) frame.remove(); });
-
-              const style = document.createElement('style');
-              style.textContent = '[aria-label="Advertisement"], .ad-overlay, .popup-overlay { display:none!important; }';
-              (document.head || document.documentElement).appendChild(style);
             })();
         """.trimIndent()
     }
@@ -116,6 +112,9 @@ private class NetworkMatcher(
     fun matches(url: String, documentHost: String?): Boolean {
         val host = runCatching { Uri.parse(url).host?.lowercase() }.getOrNull()
         if (host != null) {
+            if (ALLOWED_STREAMING_DOMAINS.any { host == it || host.endsWith(".$it") }) {
+                return false
+            }
             var candidate: String = host
             while (true) {
                 if (hostRules[candidate]?.any { it.applies(documentHost) } == true) return true
@@ -132,6 +131,21 @@ private class NetworkMatcher(
         val EMPTY = NetworkMatcher(emptyMap(), emptyList(), emptyList())
         private const val HOST_PREFIX = "^[a-z][a-z0-9+.-]*://(?:[^/?#]*\\.)?"
         private const val HOST_SUFFIX = "(?::[0-9]+)?(?:[/?#].*)?$"
+
+        private val ALLOWED_STREAMING_DOMAINS = setOf(
+            "moviesapi.to",
+            "vidfast.vc",
+            "themoviedb.org",
+            "tmdb.org",
+            "netrocdn.site",
+            "cloudflare.com",
+            "challenges.cloudflare.com",
+            "vidspark.to",
+            "openwebtorrent.com",
+            "btorrent.xyz",
+            "moviesapi.vip",
+            "nextgencloudfabric.com",
+        )
 
         fun compile(context: Context): NetworkMatcher {
             val hostRules = mutableMapOf<String, MutableList<HostRule>>()

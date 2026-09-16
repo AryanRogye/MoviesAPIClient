@@ -19,6 +19,7 @@ kotlin {
 dependencies {
     implementation(project(":sharedLogic"))
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.core.ktx)
 
     implementation(libs.compose.uiToolingPreview)
     debugImplementation(libs.compose.uiTooling)
