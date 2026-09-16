@@ -1,4 +1,6 @@
-# MoviesAPIClient shared and Fire TV projects
+# Shared Logic and Fire TV App
+
+For project setup and the full architecture overview, see the [root README](../README.md).
 
 `sharedLogic` contains the Kotlin Multiplatform models, TMDB client, and display-server URL behavior used by both Apple and Android clients. `androidApp` is the native Jetpack Compose Fire TV client.
 
