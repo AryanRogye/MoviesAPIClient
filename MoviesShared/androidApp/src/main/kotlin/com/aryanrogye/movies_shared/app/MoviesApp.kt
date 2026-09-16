@@ -69,6 +69,7 @@ import com.aryanrogye.movies_shared.network.KTDisplayServer
 import com.aryanrogye.movies_shared.web.AndroidBlockingService
 import com.aryanrogye.movies_shared.web.BlockingStatus
 import com.aryanrogye.movies_shared.web.MediaWebView
+import com.aryanrogye.movies_shared.web.PlaybackEngine
 import kotlinx.coroutines.launch
 
 private val AppColors = darkColorScheme(
@@ -227,6 +228,27 @@ private fun SettingsScreen(appState: MoviesAppState, blockingService: AndroidBlo
             color = if (blockingService.status == BlockingStatus.FAILED) Color(0xFFFF8A80) else Color.White,
         )
         blockingService.error?.let { Text(it, color = Color.White.copy(alpha = .62f), modifier = Modifier.padding(top = 8.dp)) }
+        Text(
+            "Playback engine",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 32.dp, bottom = 12.dp),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            FocusButton(
+                "Gecko",
+                selected = appState.playbackEngine == PlaybackEngine.GECKO,
+            ) { appState.updatePlaybackEngine(PlaybackEngine.GECKO) }
+            FocusButton(
+                "Native WebView",
+                selected = appState.playbackEngine == PlaybackEngine.NATIVE_WEBVIEW,
+            ) { appState.updatePlaybackEngine(PlaybackEngine.NATIVE_WEBVIEW) }
+        }
+        Text(
+            "Choose an engine before opening a movie or episode. Gecko is the default.",
+            color = Color.White.copy(alpha = .62f),
+            modifier = Modifier.padding(top = 10.dp),
+        )
         if (!appState.isConfigured) {
             Text(
                 "TMDB_API_READ_ACCESS_TOKEN is not configured. Set it as a Gradle property or environment variable and rebuild.",
@@ -325,10 +347,11 @@ private fun MovieDetail(appState: MoviesAppState, blocker: AndroidBlockingServic
                 Text("↑ controls", color = Color.White.copy(alpha = .5f))
             }
             MediaWebView(
-                url,
-                reloadKey,
-                blocker,
-                Modifier.fillMaxSize(),
+                engine = appState.playbackEngine,
+                url = url,
+                reloadKey = reloadKey,
+                blockingService = blocker,
+                modifier = Modifier.fillMaxSize(),
                 onExitFocus = { reloadFocus.requestFocus() },
                 onError = appState::reportError,
             )
@@ -384,6 +407,7 @@ private fun TvDetail(appState: MoviesAppState, blocker: AndroidBlockingService, 
                 Text("↑ controls", color = Color.White.copy(alpha = .5f))
             }
             MediaWebView(
+                engine = appState.playbackEngine,
                 url = appState.displayServer.loadTvShow(result.id, selectedSeason!!, episode.episodeNumber),
                 reloadKey = reloadKey,
                 blockingService = blocker,

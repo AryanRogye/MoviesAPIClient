@@ -27,6 +27,12 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
+
+    // Bundles Mozilla's own Gecko engine instead of relying on the system
+    // WebView provider. On Fire TV that provider is Amazon's forked AWV build,
+    // which has real engine bugs (broken vh/percentage-height viewport unit
+    // resolution) that a bundled, independently-maintained engine avoids.
+    implementation("org.mozilla.geckoview:geckoview:155.0.20260903215306")
 }
 
 android {
@@ -45,6 +51,9 @@ android {
             .orElse(localProperties.getProperty("TMDB_API_READ_ACCESS_TOKEN", ""))
             .getOrElse("")
         buildConfigField("String", "TMDB_API_READ_ACCESS_TOKEN", "\"${tmdbToken.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        ndk {
+            abiFilters.add("armeabi-v7a")
+        }
     }
     packaging {
         resources {
@@ -74,5 +83,6 @@ android {
         // compiles them into its own matcher at runtime instead of duplicating them.
         assets.srcDir("../../MoviesAPIClient/Features/WebKit/NetworkFiltering")
         assets.srcDir("../../MoviesAPIClient/Features/WebKit/PopupFiltering")
+        assets.srcDir("src/main/assets")
     }
 }
