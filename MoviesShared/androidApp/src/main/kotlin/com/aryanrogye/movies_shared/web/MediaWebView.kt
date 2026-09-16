@@ -64,7 +64,7 @@ private const val TAG = "MoviesGeckoView"
 private const val EXTENSION_ID = "movies-player@aryanrogye.com"
 private const val EXTENSION_LOCATION = "resource://android/assets/extensions/player/"
 
-enum class PlaybackEngine { NATIVE_PLAYER, GECKO, NATIVE_WEBVIEW }
+enum class PlaybackEngine { GECKO, NATIVE_WEBVIEW }
 
 @Composable
 fun MediaWebView(
@@ -77,17 +77,6 @@ fun MediaWebView(
     onError: (String) -> Unit,
 ) {
     when (engine) {
-        PlaybackEngine.NATIVE_PLAYER -> GeckoMediaWebView(
-            // NATIVE_PLAYER is handled by ResolvingPlayer in MoviesApp and
-            // never reaches here. Fall through to Gecko so previews don't crash
-            // if someone calls MediaWebView directly with NATIVE_PLAYER.
-            url = url,
-            reloadKey = reloadKey,
-            blockingService = blockingService,
-            modifier = modifier,
-            onExitFocus = onExitFocus,
-            onError = onError,
-        )
         PlaybackEngine.GECKO -> GeckoMediaWebView(
             url = url,
             reloadKey = reloadKey,
@@ -554,6 +543,9 @@ private fun NativeMediaWebView(
                     webView = this
                     setTag(URL_KEY_TAG, MediaRequest(url, reloadKey))
                     setBackgroundColor(AndroidColor.BLACK)
+                    // Hardware layer like Silk: composite the page on the GPU
+                    // instead of redrawing in software on every scroll/frame.
+                    setLayerType(View.LAYER_TYPE_HARDWARE, null)
                     settings.apply {
                         javaScriptEnabled = true
                         domStorageEnabled = true
@@ -597,8 +589,13 @@ private fun NativeMediaWebView(
                     }
                     webChromeClient = object : WebChromeClient() {
                         override fun onProgressChanged(view: WebView, newProgress: Int) {
-                            progress = newProgress / 100f
-                            isLoading = newProgress < 100
+                            // Progress fires ~100x per load; each write recomposes.
+                            // Coarsen to 2% steps so the meter doesn't jank video init.
+                            val p = newProgress / 100f
+                            if (newProgress >= 100 || kotlin.math.abs(p - progress) >= 0.02f) {
+                                progress = p
+                                isLoading = newProgress < 100
+                            }
                         }
 
                         override fun onShowCustomView(view: View, callback: CustomViewCallback) {
@@ -630,10 +627,20 @@ private fun NativeMediaWebView(
             },
             update = { view ->
                 val request = MediaRequest(url, reloadKey)
-                if (view.getTag(URL_KEY_TAG) != request) {
+                val previous = view.getTag(URL_KEY_TAG) as? MediaRequest
+                if (previous != request) {
                     view.setTag(URL_KEY_TAG, request)
                     view.settings.userAgentString = playerUserAgent(url)
-                    view.loadUrl(url)
+                    if (previous?.url == url) {
+                        // Same embed, user hit Reload: view.reload() keeps the warm
+                        // renderer, cache, cookies and connections alive. This is
+                        // exactly what Silk's refresh button does, and why it
+                        // unsticks VidFast's first-load hang instantly.
+                        // loadUrl would work but tears down more page state.
+                        view.reload()
+                    } else {
+                        view.loadUrl(url)
+                    }
                 }
             },
         )

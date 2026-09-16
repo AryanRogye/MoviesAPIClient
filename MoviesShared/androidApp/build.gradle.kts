@@ -28,13 +28,6 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
 
-    // Native playback: resolve embed -> direct HLS/mp4 -> hardware decoder.
-    // Much lighter on Fire TV than full-page Gecko/WebView video rendering.
-    implementation(libs.media3.exoplayer)
-    implementation(libs.media3.exoplayer.hls)
-    implementation(libs.media3.ui)
-    implementation(libs.media3.datasource.okhttp)
-
     // Bundles Mozilla's own Gecko engine instead of relying on the system
     // WebView provider. On Fire TV that provider is Amazon's forked AWV build,
     // which has real engine bugs (broken vh/percentage-height viewport unit

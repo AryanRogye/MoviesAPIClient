@@ -158,7 +158,9 @@ class MoviesAppState(context: Context) {
 
     private fun readPlaybackEngine(): PlaybackEngine {
         val saved = preferences.getString(PLAYBACK_ENGINE, null)
-        return PlaybackEngine.entries.firstOrNull { it.name == saved } ?: PlaybackEngine.NATIVE_PLAYER
+        // NATIVE_WEBVIEW is the default: same Chromium engine as Silk, which
+        // plays providers fine on Fire TV once past their first-load hang.
+        return PlaybackEngine.entries.firstOrNull { it.name == saved } ?: PlaybackEngine.NATIVE_WEBVIEW
     }
 
     private companion object {
