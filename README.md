@@ -15,7 +15,7 @@ Playback availability depends on the selected third-party server.
 
 ## Credits
 
-The Android/Fire TV UI was written by Codex. The app's business logic and product behavior were created by Aryan Rogye.
+The Android/Fire TV UI was written by Codex. The business logic and Swift implementation are written by Aryan Rogye.
 
 ## Project layout
 
