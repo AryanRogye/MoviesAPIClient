@@ -49,6 +49,7 @@ fun NativePlayer(
                     put("Referer", stream.referer)
                     put("Accept", "*/*")
                     stream.origin?.let { put("Origin", it) }
+                    if (!stream.cookies.isNullOrEmpty()) put("Cookie", stream.cookies)
                 },
             )
             setConnectTimeoutMs(15_000)
@@ -70,7 +71,13 @@ fun NativePlayer(
             }
             addListener(object : Player.Listener {
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                    playerError = error.message ?: "Playback failed (${error.errorCode})"
+                    android.util.Log.e(
+                        "NativePlayer",
+                        "source error url=${stream.url} code=${error.errorCode} " +
+                            "name=${error.errorCodeName} cause=${error.cause?.message}",
+                        error,
+                    )
+                    playerError = "Source error (${error.errorCodeName}, ${error.errorCode}): ${stream.url.take(120)}"
                     onError(playerError!!)
                 }
             })
