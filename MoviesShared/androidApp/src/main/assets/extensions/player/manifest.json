@@ -1,0 +1,25 @@
+{
+  "manifest_version": 2,
+  "name": "MoviesPlayerExtension",
+  "version": "1.0",
+  "description": "Compatibility and playback watchdog for video players",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "movies-player@aryanrogye.com"
+    }
+  },
+  "permissions": [
+    "<all_urls>",
+    "geckoViewAddons",
+    "nativeMessagingFromContent"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "all_frames": false,
+      "match_about_blank": false,
+      "run_at": "document_start"
+    }
+  ]
+}

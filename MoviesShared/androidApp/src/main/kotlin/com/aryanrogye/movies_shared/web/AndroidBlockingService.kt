@@ -145,6 +145,7 @@ private class NetworkMatcher(
             "btorrent.xyz",
             "moviesapi.vip",
             "nextgencloudfabric.com",
+            "vidlink.pro",
         )
 
         fun compile(context: Context): NetworkMatcher {
