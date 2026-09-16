@@ -39,7 +39,7 @@ data class ResolvedStream(
 )
 
 object StreamResolver {
-    private const val RESOLVE_TIMEOUT_MS = 20_000L
+    private const val RESOLVE_TIMEOUT_MS = 30_000L
 
     /**
      * Load [embedUrl] in a headless WebView, sniff the underlying .m3u8/.mp4
@@ -115,7 +115,10 @@ object StreamResolver {
 
         @SuppressLint("SetJavaScriptEnabled", "AddJavascriptInterface")
         fun create(): WebView = WebView(appContext).apply webApply@{
-            layoutParams = ViewGroup.LayoutParams(2, 2)
+            // Offscreen but full-size: a 2x2 viewport hides play-button overlays
+            // behind mobile breakpoints on provider embeds. Not attached to any
+            // window so nothing is composited - just laid out for JS to click.
+            layoutParams = ViewGroup.LayoutParams(1280, 720)
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
@@ -128,6 +131,8 @@ object StreamResolver {
                 mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                 javaScriptCanOpenWindowsAutomatically = false
                 setSupportMultipleWindows(false)
+                useWideViewPort = true
+                loadWithOverviewMode = false
                 this.userAgentString = userAgent
             }
             CookieManager.getInstance().apply {
@@ -135,6 +140,14 @@ object StreamResolver {
                 setAcceptThirdPartyCookies(this@webApply, true)
             }
             addJavascriptInterface(hook, "AndroidStreamHook")
+            webChromeClient = object : android.webkit.WebChromeClient() {
+                override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
+                    // Provider pages log player states here; useful when a host
+                    // changes its embed and resolve starts failing.
+                    Log.d(TAG, "console[${message.messageLevel()}]: ${message.message()}")
+                    return true
+                }
+            }
             webViewClient = object : WebViewClient() {
                 override fun shouldInterceptRequest(
                     view: WebView,
@@ -173,13 +186,35 @@ object StreamResolver {
                 }
 
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                    // Stay on the embed page - provider popups/redirects would
-                    // otherwise yank the resolver away from the player.
-                    return true
+                    // Only block non-web schemes (intent://, market://, etc).
+                    // Returning true for http(s) would cancel the provider's own
+                    // player iframes and no stream would ever be requested.
+                    val scheme = request.url.scheme?.lowercase()
+                    val isMainFrame = request.isForMainFrame
+                    if (scheme != "http" && scheme != "https") {
+                        Log.i(TAG, "Blocking non-web navigation: ${request.url}")
+                        return true
+                    }
+                    // Allow the embed + its player iframes to navigate. Popups
+                    // that try to take over the main frame with an ad host are
+                    // still contained because we never show this WebView.
+                    if (isMainFrame) {
+                        val embedHost = runCatching { Uri.parse(embedUrl).host?.lowercase() }.getOrNull()
+                        val targetHost = request.url.host?.lowercase()
+                        if (embedHost != null && targetHost != null &&
+                            targetHost != embedHost && !targetHost.endsWith(".$embedHost")
+                        ) {
+                            Log.i(TAG, "Blocking main-frame hop to ad host: ${request.url}")
+                            return true
+                        }
+                    }
+                    return false
                 }
 
                 override fun onPageFinished(view: WebView, url: String) {
+                    Log.d(TAG, "page finished: $url")
                     view.evaluateJavascript(STREAM_HOOK_JS, null)
+                    view.evaluateJavascript(AUTO_CLICK_JS, null)
                 }
             }
         }
@@ -187,12 +222,14 @@ object StreamResolver {
         try {
             webView = create().also { it.loadUrl(embedUrl) }
             // Re-inject periodically: embed players build their <video> late,
-            // after 2-3 chained iframes/APIs resolve.
+            // after 2-3 chained iframes/APIs resolve, and most hosts only
+            // request the stream AFTER a play-button click.
             val reinject = object : Runnable {
                 var ticks = 0
                 override fun run() {
-                    if (done.get() || ticks++ > 8) return
+                    if (done.get() || ticks++ > 13) return
                     webView?.evaluateJavascript(STREAM_HOOK_JS, null)
+                    webView?.evaluateJavascript(AUTO_CLICK_JS, null)
                     mainHandler.postDelayed(this, 2000)
                 }
             }
@@ -298,6 +335,71 @@ object StreamResolver {
 
     private fun emptyResponse(): WebResourceResponse =
         WebResourceResponse("text/plain", "utf-8", 204, "No Content", emptyMap(), ByteArrayInputStream(ByteArray(0)))
+
+    // Most provider embeds (moviesapi/vidfast/vidspark/vidlink) render a
+    // backdrop + big play button and only fetch the .m3u8 AFTER it is clicked.
+    // A headless resolver that never clicks will always time out with
+    // "direct stream not found". This aggressively clicks the most likely
+    // play control every 2s until the stream appears.
+    private val AUTO_CLICK_JS = """
+        (() => {
+          try {
+            // 1. Direct <video> tap-to-play: muted autoplay unlocks segments.
+            document.querySelectorAll('video').forEach(v => {
+              try {
+                v.muted = true;
+                const r = v.getBoundingClientRect();
+                if (r.width > 50 && r.height > 50) {
+                  v.click();
+                  v.play && v.play().catch(() => {});
+                }
+              } catch (e) {}
+            });
+            // 2. Score visible clickables: big + centered + play-ish wins.
+            const cands = [];
+            document.querySelectorAll('button, div, a, span, [role="button"], iframe').forEach(el => {
+              try {
+                if (el.tagName === 'IFRAME') {
+                  // Tapping the player iframe itself often starts it.
+                  const r = el.getBoundingClientRect();
+                  if (r.width > 200 && r.height > 120) cands.push({el, score: 40});
+                  return;
+                }
+                const r = el.getBoundingClientRect();
+                if (r.width < 30 || r.height < 30 || r.width > innerWidth * 0.9 && r.height > innerHeight * 0.9) return;
+                const style = getComputedStyle(el);
+                if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return;
+                const text = ((el.innerText || '') + ' ' + (el.getAttribute('aria-label') || '') + ' ' + (el.className || '')).toLowerCase();
+                let score = 0;
+                if (text.includes('play')) score += 50;
+                if (text.includes('watch') || text.includes('player')) score += 20;
+                if (/▶|►|❚❚/.test(el.innerHTML || '')) score += 40;
+                // Center of viewport = almost always the big play overlay.
+                const cx = Math.abs((r.left + r.width / 2) - innerWidth / 2) / innerWidth;
+                const cy = Math.abs((r.top + r.height / 2) - innerHeight / 2) / innerHeight;
+                score += Math.max(0, 30 - (cx + cy) * 40);
+                score += Math.min(20, (r.width * r.height) / 20000);
+                if (score > 25) cands.push({el, score});
+              } catch (e) {}
+            });
+            cands.sort((a, b) => b.score - a.score);
+            if (cands.length > 0) {
+              const top = cands[0];
+              console.log('[movies-resolver] clicking play candidate score=' + Math.round(top.score));
+              try { top.el.click(); } catch (e) {}
+              try {
+                const r = top.el.getBoundingClientRect();
+                ['mousedown', 'mouseup', 'touchstart', 'touchend'].forEach(t =>
+                  top.el.dispatchEvent(new Event(t, {bubbles: true})));
+              } catch (e) {}
+            } else {
+              // 3. Last resort: tap viewport center - many overlays listen there.
+              const el = document.elementFromPoint(innerWidth / 2, innerHeight / 2);
+              if (el) { try { el.click(); } catch (e) {} }
+            }
+          } catch (e) { console.log('[movies-resolver] autoclick err ' + e); }
+        })();
+    """.trimIndent()
 
     // Hooks fetch/XHR + scans <video>/<source> + performance entries, because
     // shouldInterceptRequest misses XHR-driven HLS.js requests on some hosts.
