@@ -69,7 +69,6 @@ import com.aryanrogye.movies_shared.network.KTDisplayServer
 import com.aryanrogye.movies_shared.web.AndroidBlockingService
 import com.aryanrogye.movies_shared.web.BlockingStatus
 import com.aryanrogye.movies_shared.web.MediaWebView
-import com.aryanrogye.movies_shared.web.PlaybackEngine
 import kotlinx.coroutines.launch
 
 private val AppColors = darkColorScheme(
@@ -229,25 +228,9 @@ private fun SettingsScreen(appState: MoviesAppState, blockingService: AndroidBlo
         )
         blockingService.error?.let { Text(it, color = Color.White.copy(alpha = .62f), modifier = Modifier.padding(top = 8.dp)) }
         Text(
-            "Playback engine",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(top = 32.dp, bottom = 12.dp),
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            FocusButton(
-                "Native WebView",
-                selected = appState.playbackEngine == PlaybackEngine.NATIVE_WEBVIEW,
-            ) { appState.updatePlaybackEngine(PlaybackEngine.NATIVE_WEBVIEW) }
-            FocusButton(
-                "Gecko",
-                selected = appState.playbackEngine == PlaybackEngine.GECKO,
-            ) { appState.updatePlaybackEngine(PlaybackEngine.GECKO) }
-        }
-        Text(
-            "Native WebView uses the same engine as Silk and auto-refreshes once if a provider hangs on its first load.",
+            "Playback uses the system WebView and preserves the warm renderer when Reload is pressed.",
             color = Color.White.copy(alpha = .62f),
-            modifier = Modifier.padding(top = 10.dp),
+            modifier = Modifier.padding(top = 32.dp),
         )
         if (!appState.isConfigured) {
             Text(
@@ -347,7 +330,6 @@ private fun MovieDetail(appState: MoviesAppState, blocker: AndroidBlockingServic
                 Text("↑ controls", color = Color.White.copy(alpha = .5f))
             }
             MediaWebView(
-                engine = appState.playbackEngine,
                 url = url,
                 reloadKey = reloadKey,
                 blockingService = blocker,
@@ -408,7 +390,6 @@ private fun TvDetail(appState: MoviesAppState, blocker: AndroidBlockingService, 
                 Text("↑ controls", color = Color.White.copy(alpha = .5f))
             }
             MediaWebView(
-                engine = appState.playbackEngine,
                 url = tvUrl,
                 reloadKey = reloadKey,
                 blockingService = blocker,

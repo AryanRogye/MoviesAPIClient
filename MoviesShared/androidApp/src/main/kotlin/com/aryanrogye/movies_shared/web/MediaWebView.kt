@@ -14,6 +14,7 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
+import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -68,7 +69,6 @@ enum class PlaybackEngine { GECKO, NATIVE_WEBVIEW }
 
 @Composable
 fun MediaWebView(
-    engine: PlaybackEngine,
     url: String,
     reloadKey: Int,
     blockingService: AndroidBlockingService,
@@ -76,23 +76,13 @@ fun MediaWebView(
     onExitFocus: () -> Unit,
     onError: (String) -> Unit,
 ) {
-    when (engine) {
-        PlaybackEngine.GECKO -> GeckoMediaWebView(
-            url = url,
-            reloadKey = reloadKey,
-            blockingService = blockingService,
-            modifier = modifier,
-            onExitFocus = onExitFocus,
-            onError = onError,
-        )
-        PlaybackEngine.NATIVE_WEBVIEW -> NativeMediaWebView(
-            url = url,
-            reloadKey = reloadKey,
-            modifier = modifier,
-            onExitFocus = onExitFocus,
-            onError = onError,
-        )
-    }
+    NativeMediaWebView(
+        url = url,
+        reloadKey = reloadKey,
+        modifier = modifier,
+        onExitFocus = onExitFocus,
+        onError = onError,
+    )
 }
 
 /**
@@ -514,12 +504,18 @@ private fun NativeMediaWebView(
     var progress by remember { mutableFloatStateOf(0f) }
     var isLoading by remember { mutableStateOf(false) }
     var webView by remember { mutableStateOf<TvCursorWebView?>(null) }
+    var inlineHost by remember { mutableStateOf<FrameLayout?>(null) }
     var customView by remember { mutableStateOf<View?>(null) }
+    var fullscreenCursor by remember { mutableStateOf<TvCursorOverlayView?>(null) }
     var customViewCallback by remember { mutableStateOf<WebChromeClient.CustomViewCallback?>(null) }
 
     fun closeFullscreen() {
         val view = customView ?: return
         (view.parent as? ViewGroup)?.removeView(view)
+        fullscreenCursor?.let { cursor ->
+            (cursor.parent as? ViewGroup)?.removeView(cursor)
+        }
+        fullscreenCursor = null
         activity?.let { act ->
             WindowCompat.setDecorFitsSystemWindows(act.window, true)
             WindowInsetsControllerCompat(act.window, act.window.decorView).apply {
@@ -527,25 +523,42 @@ private fun NativeMediaWebView(
                 systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
             }
         }
-        customViewCallback?.onCustomViewHidden()
+        val callback = customViewCallback
         customViewCallback = null
         customView = null
+        // Restore the same WebView without reloading the playing document.
+        webView?.let { browser ->
+            inlineHost?.let { host ->
+                if (browser.parent !== host) {
+                    (browser.parent as? ViewGroup)?.removeView(browser)
+                    host.addView(browser, FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                    ))
+                }
+            }
+        }
+        callback?.onCustomViewHidden()
         webView?.requestFocus()
     }
 
     BackHandler(enabled = customView != null) { closeFullscreen() }
 
     Box(modifier = modifier.background(Color.Black)) {
-        AndroidView<TvCursorWebView>(
+        AndroidView<FrameLayout>(
             modifier = Modifier.fillMaxSize(),
             factory = { ctx ->
-                TvCursorWebView(ctx, onExitFocus).apply {
+                val host = FrameLayout(ctx)
+                inlineHost = host
+                val browser = TvCursorWebView(ctx, onExitFocus).apply {
                     webView = this
                     setTag(URL_KEY_TAG, MediaRequest(url, reloadKey))
                     setBackgroundColor(AndroidColor.BLACK)
-                    // Hardware layer like Silk: composite the page on the GPU
-                    // instead of redrawing in software on every scroll/frame.
-                    setLayerType(View.LAYER_TYPE_HARDWARE, null)
+                    // Keep the normal hardware-accelerated window rendering.
+                    // A forced offscreen layer cannot contain the separate
+                    // SurfaceView used by Amazon WebView for video overlays.
+                    // LAYER_TYPE_NONE does not disable hardware acceleration.
+                    setLayerType(View.LAYER_TYPE_NONE, null)
                     settings.apply {
                         javaScriptEnabled = true
                         domStorageEnabled = true
@@ -604,19 +617,53 @@ private fun NativeMediaWebView(
                             customViewCallback = callback
                             activity?.let { act ->
                                 val decor = act.window.decorView as? ViewGroup ?: return@let
-                                view.setBackgroundColor(AndroidColor.BLACK)
+                                // AWV can keep its hardware video SurfaceView under
+                                // the original WebView even when controls move into
+                                // the fullscreen custom view. Expand both to the
+                                // same origin and bounds to avoid inline clipping.
+                                webView?.let { browser ->
+                                    (browser.parent as? ViewGroup)?.removeView(browser)
+                                    decor.addView(browser, FrameLayout.LayoutParams(
+                                        ViewGroup.LayoutParams.MATCH_PARENT,
+                                        ViewGroup.LayoutParams.MATCH_PARENT,
+                                        Gravity.TOP or Gravity.START,
+                                    ))
+                                }
+                                // Preserve WebView's custom-view background and
+                                // surface composition; do not paint over its video
+                                // surface with an application-owned opaque layer.
                                 view.translationZ = 999f
+                                (view.parent as? ViewGroup)?.removeView(view)
                                 decor.addView(view, FrameLayout.LayoutParams(
                                     ViewGroup.LayoutParams.MATCH_PARENT,
                                     ViewGroup.LayoutParams.MATCH_PARENT,
+                                    Gravity.TOP or Gravity.START,
+                                ))
+                                val cursor = TvCursorOverlayView(
+                                    act,
+                                    inputViewProvider = { customView },
+                                    onScroll = {},
+                                    onExitFullscreen = { closeFullscreen() },
+                                    onExitFocus = { closeFullscreen() },
+                                    isFullscreenProvider = { true },
+                                ).apply {
+                                    setFullscreenState(true)
+                                    translationZ = 1000f
+                                }
+                                fullscreenCursor = cursor
+                                decor.addView(cursor, FrameLayout.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    Gravity.TOP or Gravity.START,
                                 ))
                                 WindowCompat.setDecorFitsSystemWindows(act.window, false)
                                 WindowInsetsControllerCompat(act.window, act.window.decorView).apply {
                                     hide(WindowInsetsCompat.Type.systemBars())
                                     systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                                 }
-                                view.isFocusable = true
-                                view.requestFocus()
+                                decor.requestLayout()
+                                view.requestLayout()
+                                cursor.requestFocus()
                             }
                         }
 
@@ -624,8 +671,14 @@ private fun NativeMediaWebView(
                     }
                     loadUrl(url)
                 }
+                host.addView(browser, FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                ))
+                host
             },
-            update = { view ->
+            update = update@{
+                val view = webView ?: return@update
                 val request = MediaRequest(url, reloadKey)
                 val previous = view.getTag(URL_KEY_TAG) as? MediaRequest
                 if (previous != request) {

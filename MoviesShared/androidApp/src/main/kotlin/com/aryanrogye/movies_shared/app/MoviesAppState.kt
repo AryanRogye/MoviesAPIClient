@@ -14,7 +14,6 @@ import com.aryanrogye.movies_shared.models.KTSeasonInfo
 import com.aryanrogye.movies_shared.models.KTTVShow
 import com.aryanrogye.movies_shared.network.KTDisplayServer
 import com.aryanrogye.movies_shared.network.TMDBClient
-import com.aryanrogye.movies_shared.web.PlaybackEngine
 
 enum class MainTab { HOME, SEARCH, SETTINGS }
 enum class LibraryFilter { ALL, TV, MOVIES }
@@ -37,8 +36,6 @@ class MoviesAppState(context: Context) {
     private var returnTab = MainTab.HOME
     var libraryFilter by mutableStateOf(LibraryFilter.ALL)
     var displayServer by mutableStateOf(readDisplayServer())
-        private set
-    var playbackEngine by mutableStateOf(readPlaybackEngine())
         private set
     var isBusy by mutableStateOf(false)
         private set
@@ -109,11 +106,6 @@ class MoviesAppState(context: Context) {
         preferences.edit().putString(DISPLAY_SERVER, server.name).apply()
     }
 
-    fun updatePlaybackEngine(engine: PlaybackEngine) {
-        playbackEngine = engine
-        preferences.edit().putString(PLAYBACK_ENGINE, engine.name).apply()
-    }
-
     fun consumeError() {
         error = null
     }
@@ -156,15 +148,7 @@ class MoviesAppState(context: Context) {
         return KTDisplayServer.entries.firstOrNull { it.name == saved } ?: KTDisplayServer.MOVIES_API
     }
 
-    private fun readPlaybackEngine(): PlaybackEngine {
-        val saved = preferences.getString(PLAYBACK_ENGINE, null)
-        // NATIVE_WEBVIEW is the default: same Chromium engine as Silk, which
-        // plays providers fine on Fire TV once past their first-load hang.
-        return PlaybackEngine.entries.firstOrNull { it.name == saved } ?: PlaybackEngine.NATIVE_WEBVIEW
-    }
-
     private companion object {
         const val DISPLAY_SERVER = "display_server"
-        const val PLAYBACK_ENGINE = "playback_engine"
     }
 }
