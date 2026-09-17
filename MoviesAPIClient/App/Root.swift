@@ -17,66 +17,6 @@ enum TabID: Hashable {
     case search
 }
 
-@Observable
-@MainActor
-final class PlaybackSession {
-    var webView: WKWebView?
-    var sourceTab: TabID?
-    var title: String?
-    var posterPath: String?
-    var result: KTSearchResult?
-
-    var selectedEpisode: KTEpisode?
-    var seasonInfo: KTSeasonInfo?
-    var selectedSeasonNumber: Int?
-    var selectedEpisodeNumber: Int?
-
-    var url: URL?
-    private(set) var activationID = UUID()
-
-    var isActive: Bool {
-        result != nil && url != nil
-    }
-
-    func stop() {
-        self.webView?.stopLoading()
-        self.webView?.navigationDelegate = nil
-        self.webView?.uiDelegate = nil
-        self.webView = nil
-
-        self.sourceTab = nil
-        self.title = nil
-        self.posterPath = nil
-        self.result = nil
-        self.url = nil
-        self.selectedEpisode = nil
-        self.seasonInfo = nil
-        self.selectedSeasonNumber = nil
-        self.selectedEpisodeNumber = nil
-    }
-
-    func start(result: KTSearchResult, url: URL, seasonInfo: KTSeasonInfo? = nil, selectedEpisode: KTEpisode? = nil, selectedSeasonNumber: Int? = nil, selectedEpisodeNumber: Int? = nil) {
-        if self.url != url {
-            webView = nil
-        }
-
-        self.seasonInfo = seasonInfo
-        self.selectedEpisode = selectedEpisode
-        self.selectedSeasonNumber = selectedSeasonNumber
-        self.selectedEpisodeNumber = selectedEpisodeNumber
-
-        self.result = result
-        self.url = url
-        title = result.title ?? result.name
-        posterPath = result.posterPath
-        activationID = UUID()
-    }
-
-    func isPlaying(_ result: KTSearchResult) -> Bool {
-        self.result?.id == result.id && url != nil
-    }
-}
-
 struct Root: View {
 
     private enum PlaybackRoute: Hashable {
@@ -154,35 +94,46 @@ struct Root: View {
                     playbackSession.sourceTab = selectedTab
                 }
                 .tabViewBottomAccessory(isEnabled: playbackSession.isActive) {
-                    Button(action: returnToPlayback) {
-                        HStack {
-                            if let posterPath = playbackSession.posterPath,
-                               let posterURL = URL(string: "https://image.tmdb.org/t/p/w500\(posterPath)") {
-                                AsyncImage(url: posterURL) { image in
-                                    image
-                                        .resizable()
-                                        .scaledToFill()
-                                } placeholder: {
-                                    Color.secondary.opacity(0.2)
-                                }
-                                .frame(width: 40, height: 40)
-                                .clipShape(.rect(cornerRadius: 5))
-                            }
-
-                            Text(playbackSession.title ?? "Now Playing")
-                                .lineLimit(1)
-
-                            Spacer()
-
-                            Image(systemName: "chevron.up")
+                    HStack(spacing: 10) {
+                        Button(action: playbackSession.stop) {
+                            Image(systemName: "xmark")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.secondary)
+                                .frame(width: 30, height: 40)
+                                .contentShape(.rect)
                         }
-                        .padding(4)
-                        .padding(.horizontal, 8)
-                        .contentShape(.rect)
+                        .buttonStyle(.plain)
+
+                        Button(action: returnToPlayback) {
+                            HStack(spacing: 10) {
+                                if let posterPath = playbackSession.playback?.posterPath,
+                                   let posterURL = URL(string: "https://image.tmdb.org/t/p/w500\(posterPath)") {
+                                    AsyncImage(url: posterURL) { image in
+                                        image
+                                            .resizable()
+                                            .scaledToFill()
+                                    } placeholder: {
+                                        Color.secondary.opacity(0.2)
+                                    }
+                                    .frame(width: 40, height: 40)
+                                    .clipShape(.rect(cornerRadius: 5))
+                                }
+
+                                Text(playbackSession.playback?.title ?? "Now Playing")
+                                    .lineLimit(1)
+
+                                Spacer()
+
+                                Image(systemName: "chevron.up")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .contentShape(.rect)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
+                    .padding(4)
+                    .padding(.horizontal, 8)
                 }
                 .environment(tmdbManager)
                 .environment(blockingService)

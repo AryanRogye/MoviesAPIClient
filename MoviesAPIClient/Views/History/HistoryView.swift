@@ -89,8 +89,7 @@ struct HistoryView: View {
                                     displayServer: displayServerBinding,
                                     result: searchResult,
                                     seasonNumber: season,
-                                    episodeNumber: episode,
-                                    restoresPlayback: false
+                                    episodeNumber: episode
                                 )
                                 .environment(tmdbManager)
                                 .environment(blockingService)
@@ -98,8 +97,7 @@ struct HistoryView: View {
                         case .movie:
                                 MovieDetailView(
                                     displayServer: displayServerBinding,
-                                    result: searchResult,
-                                    restoresPlayback: false
+                                    result: searchResult
                                 )
                                 .environment(tmdbManager)
                                 .environment(blockingService)

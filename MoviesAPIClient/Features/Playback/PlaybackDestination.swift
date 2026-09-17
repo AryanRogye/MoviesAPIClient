@@ -12,8 +12,8 @@ struct PlaybackDestination: View {
     @Environment(PlaybackSession.self) private var playbackSession
 
     var body: some View {
-        if let result = playbackSession.result {
-            WatchDetailView(result: result, restoresPlayback: true)
+        if let playback = playbackSession.playback {
+            WatchDetailView(result: playback.result, restoredPlayback: playback)
         } else {
             ContentUnavailableView(
                 "Nothing Playing",

@@ -11,7 +11,7 @@ import SharedLogic
 struct WatchDetailView: View {
 
     let result: KTSearchResult
-    var restoresPlayback: Bool = false
+    var restoredPlayback: PlaybackSession.Playback?
     @AppStorage("DisplayServer") private var displayServerRawValue = KTDisplayServer.moviesApi.rawValue
 
     private var displayServer: KTDisplayServer {
@@ -28,9 +28,17 @@ struct WatchDetailView: View {
     var body: some View {
         switch result.mediaType {
         case .movie:
-            MovieDetailView(displayServer: displayServerBinding, result: result, restoresPlayback: restoresPlayback)
+            MovieDetailView(
+                displayServer: displayServerBinding,
+                result: result,
+                restoredURL: restoredPlayback?.movieURL(for: result)
+            )
         case .tv:
-            TVDetailView(displayServer: displayServerBinding, result: result, restoresPlayback: restoresPlayback)
+            TVDetailView(
+                displayServer: displayServerBinding,
+                result: result,
+                restoredPlayback: restoredPlayback?.tvPlayback(for: result)
+            )
         case .person:
             Text("Not Yet Supported")
         default:

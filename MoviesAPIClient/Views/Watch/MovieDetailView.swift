@@ -19,7 +19,17 @@ struct MovieDetailView: View {
     @Query var history: [History]
     @Binding var displayServer: KTDisplayServer
     let result: KTSearchResult
-    let restoresPlayback: Bool
+
+    init(
+        displayServer: Binding<KTDisplayServer>,
+        result: KTSearchResult,
+        restoredURL: URL? = nil
+    ) {
+        self._displayServer = displayServer
+        self.result = result
+        self._movieUrl = State(initialValue: restoredURL)
+        self._hasLoadedMovie = State(initialValue: restoredURL != nil)
+    }
 
     @State private var error: String?
     @State private var showError: Bool = false
@@ -136,12 +146,6 @@ struct MovieDetailView: View {
         }
         .navigationBarBackButtonHidden()
         .frame(maxWidth: .infinity)
-        .onAppear {
-            if restoresPlayback && playbackSession.isPlaying(result) {
-                movieUrl = playbackSession.url
-                hasLoadedMovie = true
-            }
-        }
         .onChange(of: displayServer) {
             if hasLoadedMovie {
                 movieUrl = nil
@@ -210,7 +214,7 @@ struct MovieDetailView: View {
                 modelContext.insert(history)
             }
 
-            playbackSession.start(result: result, url: url)
+            playbackSession.startMovie(result: result, url: url)
 
             movieUrl = url
             hasLoadedMovie = true
@@ -278,8 +282,7 @@ private struct MovieImageView: View {
                 """,
                     releaseDate: nil,
                     firstAirDate: nil
-                ),
-                restoresPlayback: false
+                )
             )
             .environment(tmdbManager)
             .environment(BlockingService())
