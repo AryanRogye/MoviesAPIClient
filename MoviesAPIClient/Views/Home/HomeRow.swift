@@ -22,9 +22,11 @@ struct HomeRow: View {
 
             Text(name)
                 .font(.subheadline.weight(.medium))
+                .minimumScaleFactor(0.5)
                 .lineLimit(1)
                 .frame(width: 110, alignment: .leading)
         }
+        .frame(width: 110, height: 165)
         .overlay(alignment: .topTrailing) {
             Text(mediaType.rawValue)
                 .font(.caption2.bold())

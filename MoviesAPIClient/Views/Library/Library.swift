@@ -45,6 +45,7 @@ struct Library: View {
 
                     FavoritesView(filter: selectedFilter)
                 }
+                .padding(.bottom)
             }
         }
         .navigationTitle("Library")

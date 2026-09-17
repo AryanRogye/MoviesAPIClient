@@ -32,9 +32,9 @@ struct FavoritesView: View {
         }
     }
 
-    let columns: [GridItem] = [
-        GridItem(.flexible(), spacing: 16),
-        GridItem(.flexible(), spacing: 16),
+    let rows: [GridItem] = [
+        GridItem(.fixed(180), spacing: 12),
+        GridItem(.fixed(180), spacing: 12),
     ]
 
     @State private var error: String?
@@ -48,24 +48,26 @@ struct FavoritesView: View {
     @State private var isResolving: Bool = false
 
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 16) {
-            ForEach(filteredFavorites, id: \.id) { favorite in
-                FavoriteRow(favorite: favorite)
-                    .onTapGesture {
-                        playbackSession.stop()
-                        resolve(favorite)
-                    }
-                    .overlay {
-                        if resolvingFavorite == favorite {
-                            ProgressView()
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .background(.black.opacity(0.1))
+        ScrollView(.horizontal) {
+            LazyHGrid(rows: rows,spacing: 12) {
+                ForEach(filteredFavorites, id: \.id) { favorite in
+                    FavoriteRow(favorite: favorite)
+                        .onTapGesture {
+                            playbackSession.stop()
+                            resolve(favorite)
                         }
-                    }
+                        .overlay {
+                            if resolvingFavorite == favorite {
+                                ProgressView()
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .background(.black.opacity(0.1))
+                            }
+                        }
+                }
             }
+            .padding(.bottom, 8)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal)
         .alert(isPresented: $showError) {
             Alert(
                 title: Text("Error"),
@@ -120,14 +122,17 @@ struct FavoriteRow: View {
     var body: some View {
         VStack(alignment: .leading) {
             FavoriteImageView(favorite: favorite)
+                .frame(width: 110, height: 165)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
 
             Text(favorite.name)
                 .font(.subheadline.weight(.medium))
-                .lineLimit(2)
+                .minimumScaleFactor(0.5)
+                .lineLimit(1)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(width: 110, height: 165)
         .overlay(alignment: .topTrailing) {
             Text(favorite.mediaType == "tv" ? "TV" : "Movie")
                 .font(.caption2.weight(.bold))
@@ -190,4 +195,3 @@ private struct FavoriteImageView: View {
         }
     }
 }
-
