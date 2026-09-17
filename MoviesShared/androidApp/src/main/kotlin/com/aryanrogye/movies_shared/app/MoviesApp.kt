@@ -539,9 +539,29 @@ private fun TvDetail(appState: MoviesAppState, blocker: AndroidBlockingService, 
 
     val episode = selectedEpisode
     if (episode != null && selectedSeason != null) {
+        var showEpisodeInfo by remember(episode.id) { mutableStateOf(false) }
         BackHandler { selectedEpisode = null }
         val tvUrl = appState.displayServer.loadTvShow(result.id, selectedSeason!!, episode.episodeNumber)
         LaunchedEffect(tvUrl) { appState.recordWatch(result, selectedSeason, episode.episodeNumber) }
+        if (showEpisodeInfo) {
+            AlertDialog(
+                onDismissRequest = { showEpisodeInfo = false },
+                title = {
+                    Text(episode.name.ifBlank { "Episode ${episode.episodeNumber}" })
+                },
+                text = {
+                    val overview = episode.overview.trim()
+                    if (overview.isEmpty()) {
+                        Text("No episode overview is available.")
+                    } else {
+                        ExpandableText(text = overview, collapsedLines = 4)
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showEpisodeInfo = false }) { Text("Close") }
+                },
+            )
+        }
         Column(Modifier.fillMaxSize()) {
             Row(
                 Modifier.padding(bottom = 10.dp),
@@ -550,6 +570,7 @@ private fun TvDetail(appState: MoviesAppState, blocker: AndroidBlockingService, 
             ) {
                 FocusButton("‹  Episodes") { selectedEpisode = null }
                 FocusButton("↻  Reload", modifier = Modifier.focusRequester(reloadFocus)) { reloadKey++ }
+                FocusButton("ⓘ  Info") { showEpisodeInfo = true }
                 Text(
                     text = "${result.displayName()} · S$selectedSeason E${episode.episodeNumber}${if (!episode.name.isNullOrBlank()) ": ${episode.name}" else ""}",
                     fontSize = 20.sp,
@@ -560,7 +581,6 @@ private fun TvDetail(appState: MoviesAppState, blocker: AndroidBlockingService, 
                 )
                 Text("↑ controls", color = Color.White.copy(alpha = .5f))
             }
-            EpisodeInfo(episode)
             MediaWebView(
                 url = tvUrl,
                 reloadKey = reloadKey,
@@ -583,29 +603,6 @@ private fun TvDetail(appState: MoviesAppState, blocker: AndroidBlockingService, 
                     onEpisode = { selectedEpisode = it },
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun EpisodeInfo(episode: KTEpisode) {
-    val overview = episode.overview.trim()
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 12.dp),
-    ) {
-        Text(
-            episode.name.ifBlank { "Episode ${episode.episodeNumber}" },
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold,
-        )
-        if (overview.isNotEmpty()) {
-            ExpandableText(
-                text = overview,
-                modifier = Modifier.padding(top = 4.dp),
-            )
         }
     }
 }
