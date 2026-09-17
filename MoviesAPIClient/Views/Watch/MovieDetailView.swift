@@ -174,9 +174,9 @@ struct MovieDetailView: View {
                 .pickerStyle(.menu)
                 .tint(.primary)
 
-                if movieUrl != nil {
+                if let movieUrl {
                     Button {
-                        playbackSession.webView?.reload()
+                        playbackSession.webView?.load(movieUrl)
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }

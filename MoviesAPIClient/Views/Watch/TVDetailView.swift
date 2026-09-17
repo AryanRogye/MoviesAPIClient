@@ -138,8 +138,7 @@ struct TVDetailView: View {
             }
         }
         .task {
-            if let selectedSeasonNumber,
-               let selectedEpisodeNumber {
+            if let selectedSeasonNumber, let selectedEpisodeNumber {
                 loadSeason(
                     season: selectedSeasonNumber,
                     pickingEpisode: selectedEpisodeNumber
@@ -177,9 +176,9 @@ struct TVDetailView: View {
                 .pickerStyle(.menu)
                 .tint(.primary)
 
-                if tvUrl != nil {
+                if let tvUrl {
                     Button {
-                        playbackSession.webView?.reload()
+                        playbackSession.webView?.load(tvUrl)
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }
