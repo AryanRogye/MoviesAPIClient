@@ -23,6 +23,7 @@ final class PlaybackSession {
     var webView: WKWebView?
     var sourceTab: TabID?
     var title: String?
+    var posterPath: String?
     var result: KTSearchResult?
 
     var selectedEpisode: KTEpisode?
@@ -45,6 +46,7 @@ final class PlaybackSession {
 
         self.sourceTab = nil
         self.title = nil
+        self.posterPath = nil
         self.result = nil
         self.url = nil
         self.selectedEpisode = nil
@@ -66,6 +68,7 @@ final class PlaybackSession {
         self.result = result
         self.url = url
         title = result.title ?? result.name
+        posterPath = result.posterPath
         activationID = UUID()
     }
 
@@ -153,15 +156,27 @@ struct Root: View {
                 .tabViewBottomAccessory(isEnabled: playbackSession.isActive) {
                     Button(action: returnToPlayback) {
                         HStack {
-                            Image(systemName: "play.fill")
+                            if let posterPath = playbackSession.posterPath,
+                               let posterURL = URL(string: "https://image.tmdb.org/t/p/w500\(posterPath)") {
+                                AsyncImage(url: posterURL) { image in
+                                    image
+                                        .resizable()
+                                        .scaledToFill()
+                                } placeholder: {
+                                    Color.secondary.opacity(0.2)
+                                }
+                                .frame(width: 40, height: 40)
+                                .clipShape(.rect(cornerRadius: 5))
+                            }
 
                             Text(playbackSession.title ?? "Now Playing")
                                 .lineLimit(1)
 
                             Spacer()
 
-                            Label("Return", systemImage: "arrow.up.right")
-                                .labelStyle(.iconOnly)
+                            Image(systemName: "chevron.up")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
                         }
                         .padding(4)
                         .padding(.horizontal, 8)
