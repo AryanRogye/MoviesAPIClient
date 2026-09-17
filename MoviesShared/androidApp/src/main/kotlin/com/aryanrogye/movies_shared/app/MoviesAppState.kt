@@ -24,6 +24,12 @@ enum class LibraryFilter { ALL, TV, MOVIES }
 data class DiscoveryItem(val result: KTSearchResult, val imagePath: String?, val adult: Boolean = false)
 data class DiscoverySection(val title: String, val items: List<DiscoveryItem> = emptyList(), val loading: Boolean = true, val error: String? = null)
 
+fun DiscoverySection.matches(filter: LibraryFilter): Boolean = when (filter) {
+    LibraryFilter.ALL -> true
+    LibraryFilter.TV -> title == "Trending" || title == "Popular TV Shows" || title == "Top Rated TV Shows"
+    LibraryFilter.MOVIES -> title == "Trending" || title == "Now Playing Movies" || title == "Popular Movies" || title == "Top Rated Movies"
+}
+
 sealed interface AppDestination {
     data class Main(val tab: MainTab) : AppDestination
     data class Detail(val result: KTSearchResult, val history: WatchHistory? = null) : AppDestination

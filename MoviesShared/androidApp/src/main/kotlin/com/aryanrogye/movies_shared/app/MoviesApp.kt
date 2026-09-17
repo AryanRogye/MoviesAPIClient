@@ -153,7 +153,7 @@ private fun HomeScreen(appState: MoviesAppState) {
             FilterButtons(appState.homeFilter) { appState.homeFilter = it }
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(appState.discovery, key = { it.title }) { section ->
+            items(appState.discovery.filter { it.matches(appState.homeFilter) }, key = { it.title }) { section ->
                 Column {
                     Text(section.title, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp, bottom = 12.dp))
                     val visible = section.items.filter { item ->
