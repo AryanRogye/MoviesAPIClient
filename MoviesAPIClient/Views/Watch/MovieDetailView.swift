@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import SharedLogic
+import WebKit
 
 struct MovieDetailView: View {
 
