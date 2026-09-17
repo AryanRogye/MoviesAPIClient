@@ -9,14 +9,6 @@ import SwiftUI
 import WebKit
 import MoviesAPICore
 
-enum TabID: Hashable {
-    case home
-    case library
-    case history
-    case settings
-    case search
-}
-
 struct Root: View {
 
     private enum PlaybackRoute: Hashable {

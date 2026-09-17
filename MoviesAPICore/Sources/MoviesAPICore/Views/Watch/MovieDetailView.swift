@@ -7,10 +7,9 @@
 
 import SwiftUI
 import SwiftData
-import MoviesAPICore
 import WebKit
 
-struct MovieDetailView: View {
+public struct MovieDetailView: View {
 
     @Environment(\.modelContext) var modelContext
     @Environment(PlaybackSession.self) var playbackSession
@@ -20,7 +19,7 @@ struct MovieDetailView: View {
     @Binding var displayServer: KTDisplayServer
     let result: KTSearchResult
 
-    init(
+    public init(
         displayServer: Binding<KTDisplayServer>,
         result: KTSearchResult,
         restoredURL: URL? = nil
@@ -38,8 +37,7 @@ struct MovieDetailView: View {
     @State private var hasLoadedMovie: Bool = false
     @State private var reloadID = UUID()
 
-
-    var body: some View {
+    public var body: some View {
         VStack {
             if let movieUrl {
 #if os(iOS)

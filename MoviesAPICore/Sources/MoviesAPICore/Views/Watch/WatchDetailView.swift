@@ -6,12 +6,16 @@
 //
 
 import SwiftUI
-import MoviesAPICore
 
-struct WatchDetailView: View {
+public struct WatchDetailView: View {
 
     let result: KTSearchResult
     var restoredPlayback: PlaybackSession.Playback?
+
+    public init(result: KTSearchResult, restoredPlayback: PlaybackSession.Playback? = nil) {
+        self.result = result
+        self.restoredPlayback = restoredPlayback
+    }
     @AppStorage("DisplayServer") private var displayServerRawValue = KTDisplayServer.moviesApi.rawValue
 
     private var displayServer: KTDisplayServer {
@@ -25,7 +29,7 @@ struct WatchDetailView: View {
         )
     }
 
-    var body: some View {
+    public var body: some View {
         switch result.mediaType {
         case .movie:
             MovieDetailView(

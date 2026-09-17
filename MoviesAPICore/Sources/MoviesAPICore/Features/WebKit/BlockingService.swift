@@ -10,20 +10,20 @@ import WebKit
 
 @Observable
 @MainActor
-final class BlockingService {
+public final class BlockingService {
     let networkFilteringService = NetworkFilteringService()
     let popupFilteringService = PopupFilteringService()
 
-    var isCompilingNetworkFiltering: Bool = false
-    var appliedNetworkFiltering = false
-    var hasAttemptedNetworkFiltering = false
-    var networkFilterError: String? = nil
-    var networkFilterTask: Task<Void, Never>?
+    public var isCompilingNetworkFiltering: Bool = false
+    public var appliedNetworkFiltering = false
+    public var hasAttemptedNetworkFiltering = false
+    public var networkFilterError: String? = nil
+    private var networkFilterTask: Task<Void, Never>?
 
-    var appliedPopupBlocking = false
-    var popupBlockingError: String? = nil
+    public var appliedPopupBlocking = false
+    public var popupBlockingError: String? = nil
 
-    private(set) var isNetworkFilteringReady = false
+    public private(set) var isNetworkFilteringReady = false
 
     public init() {
         preloadNetworkFilters()

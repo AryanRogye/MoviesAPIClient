@@ -7,7 +7,6 @@
 
 import Foundation
 import Defaults
-import MoviesAPICore
 
 enum TMDBError: LocalizedError {
     case noToken
@@ -25,7 +24,7 @@ enum TMDBError: LocalizedError {
 
 @Observable
 @MainActor
-final class TMDBManager {
+public final class TMDBManager {
 
     private let tmdbClient: TMDBClientProviding
     private let token: String
@@ -56,17 +55,17 @@ final class TMDBManager {
         }
     }
 
-    private(set) var popularTV: [KTTVListResult] = []
-    private(set) var topRatedTV: [KTTVListResult] = []
-    private(set) var searchResults: [KTSearchResult] = []
+    public private(set) var popularTV: [KTTVListResult] = []
+    public private(set) var topRatedTV: [KTTVListResult] = []
+    public private(set) var searchResults: [KTSearchResult] = []
 
-    var includeAdult: Bool = Defaults[.includeAdult] {
+    public var includeAdult: Bool = Defaults[.includeAdult] {
         didSet {
             Defaults[.includeAdult] = includeAdult
         }
     }
 
-    init(tmdbClient: TMDBClientProviding = TMDBClient(), token tokenOverride: String? = nil) throws {
+    public init(tmdbClient: TMDBClientProviding = TMDBClient(), token tokenOverride: String? = nil) throws {
         if let tokenOverride {
             self.tmdbClient = tmdbClient
             self.token = tokenOverride

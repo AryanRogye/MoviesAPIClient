@@ -7,11 +7,13 @@
 
 import SwiftUI
 
-struct PlaybackDestination: View {
+public struct PlaybackDestination: View {
 
     @Environment(PlaybackSession.self) private var playbackSession
 
-    var body: some View {
+    public init() {}
+
+    public var body: some View {
         if let playback = playbackSession.playback {
             WatchDetailView(result: playback.result, restoredPlayback: playback)
         } else {

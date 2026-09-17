@@ -5,8 +5,6 @@
 //  Created by Aryan Rogye on 9/14/26.
 //
 
-import MoviesAPICore
-
 /// KMP doesnt expose rawValue so we derive it
 extension KTMediaType {
     var rawValue: String {

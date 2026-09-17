@@ -29,14 +29,18 @@ final class EmbeddedMovieViewModel {
     }
 }
 
-struct EmbeddedMovieView: View {
+public struct EmbeddedMovieView: View {
 
     @Environment(PlaybackSession.self) var playbackSession
     @Environment(BlockingService.self) var blockingService
     @State var vm: EmbeddedMovieViewModel = .init()
     let url: URL
 
-    var body: some View {
+    public init(url: URL) {
+        self.url = url
+    }
+
+    public var body: some View {
         WebView(
             vm: vm,
             playbackSession: playbackSession,

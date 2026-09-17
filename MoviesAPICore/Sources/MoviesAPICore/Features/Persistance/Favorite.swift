@@ -8,14 +8,14 @@
 import SwiftData
 
 @Model
-final class Favorite {
-    @Attribute(.unique) var id: Int
+public final class Favorite {
+    @Attribute(.unique) public var id: Int
 
-    var name: String
-    var mediaType: String
-    var posterPath: String?
+    public var name: String
+    public var mediaType: String
+    public var posterPath: String?
 
-    init(
+    public init(
         id: Int,
         name: String,
         mediaType: String,

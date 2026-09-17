@@ -6,49 +6,50 @@
 //
 
 import Foundation
-import MoviesAPICore
 import WebKit
 
 @Observable
 @MainActor
-final class PlaybackSession {
-    struct TVPlayback {
-        let url: URL
-        let seasonInfo: KTSeasonInfo
-        let episode: KTEpisode
-        let seasonNumber: Int
+public final class PlaybackSession {
+    public struct TVPlayback {
+        public let url: URL
+        public let seasonInfo: KTSeasonInfo
+        public let episode: KTEpisode
+        public let seasonNumber: Int
     }
 
-    struct Playback {
-        let result: KTSearchResult
-        let url: URL
-        let episode: TVPlayback?
+    public struct Playback {
+        public let result: KTSearchResult
+        public let url: URL
+        public let episode: TVPlayback?
 
-        var title: String? {
+        public var title: String? {
             result.title ?? result.name
         }
 
-        var posterPath: String? {
+        public var posterPath: String? {
             result.posterPath
         }
 
-        func movieURL(for result: KTSearchResult) -> URL? {
+        public func movieURL(for result: KTSearchResult) -> URL? {
             guard self.result.id == result.id, episode == nil else { return nil }
             return url
         }
 
-        func tvPlayback(for result: KTSearchResult) -> TVPlayback? {
+        public func tvPlayback(for result: KTSearchResult) -> TVPlayback? {
             guard self.result.id == result.id else { return nil }
             return episode
         }
     }
 
-    var webView: WKWebView?
-    var sourceTab: TabID?
-    private(set) var playback: Playback?
-    private(set) var activationID = UUID()
+    public init() {}
 
-    var isActive: Bool {
+    public var webView: WKWebView?
+    public var sourceTab: TabID?
+    public private(set) var playback: Playback?
+    public private(set) var activationID = UUID()
+
+    public var isActive: Bool {
         playback != nil
     }
 

@@ -6,11 +6,14 @@
 //
 
 #if DEBUG
-import MoviesAPICore
+import SharedLogic
 
-final class TMDBClientPreview: TMDBClientProviding {
-    func infoOnTV(id: Int32, token: String) async throws -> KTTVShow {
-        KTTVShow(
+public final class TMDBClientPreview: TMDBClientProviding {
+
+    public init() {}
+
+    public func infoOnTV(id: Int32, token: String) async throws -> KTTVShow {
+        await KTTVShow(
             id: id,
             name: "Lab Rats",
             overview: "Leo discovers three superhuman teenagers living in a secret underground lab beneath his new home.",
@@ -21,7 +24,7 @@ final class TMDBClientPreview: TMDBClientProviding {
         )
     }
 
-    func seasonInfo(id: Int32, seasonNumber: Int32, token: String) async throws -> KTSeasonInfo {
+    public func seasonInfo(id: Int32, seasonNumber: Int32, token: String) async throws -> KTSeasonInfo {
         let episodes = (1...6).map { episodeNumber in
             KTEpisode(
                 id: seasonNumber * 1_000 + Int32(episodeNumber),
@@ -46,8 +49,8 @@ final class TMDBClientPreview: TMDBClientProviding {
         )
     }
 
-    func nowPlayingMovies(token: String, page: Int32) async throws -> KTNowPlayingMovieResponse {
-        KTNowPlayingMovieResponse(
+    public func nowPlayingMovies(token: String, page: Int32) async throws -> KTNowPlayingMovieResponse {
+        await KTNowPlayingMovieResponse(
             dates: KTMovieDateRange(maximum: "2026-09-16", minimum: "2026-08-01"),
             page: page,
             results: Self.movies,
@@ -56,23 +59,23 @@ final class TMDBClientPreview: TMDBClientProviding {
         )
     }
 
-    func popularMovies(token: String, page: Int32) async throws -> KTMovieListResponse {
-        movieResponse(page: page)
+    public func popularMovies(token: String, page: Int32) async throws -> KTMovieListResponse {
+        await movieResponse(page: page)
     }
 
-    func topRatedMovies(token: String, page: Int32) async throws -> KTMovieListResponse {
-        movieResponse(page: page)
+    public func topRatedMovies(token: String, page: Int32) async throws -> KTMovieListResponse {
+        await movieResponse(page: page)
     }
 
-    func popularTV(token: String, page: Int32) async throws -> KTTVListResponse {
-        tvResponse(page: page)
+    public func popularTV(token: String, page: Int32) async throws -> KTTVListResponse {
+        await tvResponse(page: page)
     }
 
-    func topRatedTV(token: String, page: Int32) async throws -> KTTVListResponse {
-        tvResponse(page: page)
+    public func topRatedTV(token: String, page: Int32) async throws -> KTTVListResponse {
+        await tvResponse(page: page)
     }
 
-    func search(query: String, token: String, includeAdult: Bool) async throws -> KTSearchResponse {
+    public func search(query: String, token: String, includeAdult: Bool) async throws -> KTSearchResponse {
         KTSearchResponse(results: [
             KTSearchResult(
                 id: 38867,
@@ -87,7 +90,7 @@ final class TMDBClientPreview: TMDBClientProviding {
         ])
     }
 
-    func trending(token: String) async throws -> KTTrendingResponse {
+    public func trending(token: String) async throws -> KTTrendingResponse {
         let result = KTTrendingResult(
             adult: false,
             backdropPath: "/lcQMvn9ZptPd3dxn0a17viRfi7Y.jpg",
@@ -113,15 +116,16 @@ final class TMDBClientPreview: TMDBClientProviding {
         return KTTrendingResponse(page: 1, results: [result], totalPages: 1, totalResults: 1)
     }
 
-    private func movieResponse(page: Int32) -> KTMovieListResponse {
+    @MainActor private func movieResponse(page: Int32) -> KTMovieListResponse {
         KTMovieListResponse(page: page, results: Self.movies, totalPages: 1, totalResults: Int32(Self.movies.count))
     }
 
-    private func tvResponse(page: Int32) -> KTTVListResponse {
+    @MainActor private func tvResponse(page: Int32) -> KTTVListResponse {
         KTTVListResponse(page: page, results: Self.tvShows, totalPages: 1, totalResults: Int32(Self.tvShows.count))
     }
 
-    private static let seasons: [KTSeason] = (1...4).map { seasonNumber in
+    @MainActor
+    public static let seasons: [KTSeason] = (1...4).map { seasonNumber in
         KTSeason(
             id: Int32(10_000 + seasonNumber),
             name: "Season \(seasonNumber)",
@@ -131,6 +135,7 @@ final class TMDBClientPreview: TMDBClientProviding {
         )
     }
 
+    @MainActor
     private static let movies = [
         KTMovieListResult(
             adult: false, backdropPath: nil, genreIds: [], id: 969681,
@@ -141,6 +146,7 @@ final class TMDBClientPreview: TMDBClientProviding {
         )
     ]
 
+    @MainActor
     private static let tvShows = [
         KTTVListResult(
             backdropPath: "/lcQMvn9ZptPd3dxn0a17viRfi7Y.jpg", firstAirDate: "2012-02-27",

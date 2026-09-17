@@ -127,7 +127,7 @@ final class NetworkFilteringService {
     /// Function Loads `NetworkBlockingRules.Json` and
     /// returns as `String`
     private nonisolated func rulesJson() throws -> String {
-        guard let url = Bundle.main.url(
+        guard let url = Bundle.module.url(
             forResource: "NetworkBlockingRules",
             withExtension: "json",
         ) else {

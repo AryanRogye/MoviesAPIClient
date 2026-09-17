@@ -7,10 +7,10 @@
 
 import Foundation
 
-enum DisplayServerError: LocalizedError {
+public enum DisplayServerError: LocalizedError {
     case cantConstructURL
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .cantConstructURL:
             return "Can't construct URL"

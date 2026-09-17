@@ -123,7 +123,7 @@ class PopupFilteringService {
     }
 
     private func getPopupFiltersJson() throws -> [[String]] {
-        guard let url = Bundle.main.url(
+        guard let url = Bundle.module.url(
             forResource: "PopupFilters",
             withExtension: "json"
         ) else {

@@ -15,6 +15,12 @@ let package = Package(
             targets: ["MoviesAPICore"]
         ),
     ],
+    dependencies: [
+        .package(
+            url: "https://github.com/sindresorhus/Defaults.git",
+            from: "9.0.9"
+        ),
+    ],
     targets: [
         .binaryTarget(
             name: "SharedLogic",
@@ -22,11 +28,19 @@ let package = Package(
         ),
         .target(
             name: "MoviesAPICore",
-            dependencies: ["SharedLogic"],
+            dependencies: [
+                "SharedLogic",
+                .product(name: "Defaults", package: "Defaults"),
+            ],
+            resources: [
+                .process("Features/WebKit/NetworkFiltering/NetworkBlockingRules.json"),
+                .copy("Features/WebKit/NetworkFiltering/NetworkBlockingRules.json.license"),
+                .process("Features/WebKit/PopupFiltering/PopupFilters.json"),
+            ],
             swiftSettings: [
-                .enableUpcomingFeature("ApproachableConcurrency"),
+                .defaultIsolation(nil),
             ],
         ),
-
-    ]
+    ],
+    swiftLanguageModes: [.v5],
 )

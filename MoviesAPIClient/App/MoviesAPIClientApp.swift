@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import MoviesAPICore
 
 @main
 struct MoviesAPIClientApp: App {

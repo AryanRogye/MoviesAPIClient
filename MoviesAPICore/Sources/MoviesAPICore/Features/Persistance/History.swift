@@ -8,24 +8,24 @@
 import SwiftData
 import Foundation
 
-enum HistoryMediaType: String, Codable {
+public enum HistoryMediaType: String, Codable {
     case movie
     case episode
 }
 
 @Model
-class History {
+public class History {
     /// we dont make resultid the main id because we may have multiple episodes
-    var id: UUID
-    var resultId: Int
-    var name: String
-    var mediaType: HistoryMediaType
-    var season: Int?
-    var episode: Int?
-    var watchedAt: Date
-    var posterPath: String?
+    public var id: UUID
+    public var resultId: Int
+    public var name: String
+    public var mediaType: HistoryMediaType
+    public var season: Int?
+    public var episode: Int?
+    public var watchedAt: Date
+    public var posterPath: String?
 
-    init(
+    public init(
         id: UUID = UUID(),
         resultId: Int,
         name: String,

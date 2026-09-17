@@ -1,16 +1,15 @@
 //
 //  TVDetailView.swift
-//  MoviesAPIClient
+//  MoviesAPICore
 //
-//  Created by Aryan Rogye on 9/14/26.
+//  Created by Aryan Rogye on 9/17/26.
 //
 
 import SwiftUI
 import SwiftData
-import MoviesAPICore
 import WebKit
 
-struct TVDetailView: View {
+public struct TVDetailView: View {
 
     @Environment(TMDBManager.self) var tmdbManager
     @Environment(PlaybackSession.self) var playbackSession
@@ -21,7 +20,7 @@ struct TVDetailView: View {
     @Binding var displayServer: KTDisplayServer
     let result: KTSearchResult
 
-    init(
+    public init(
         displayServer: Binding<KTDisplayServer>,
         result: KTSearchResult,
         restoredPlayback: PlaybackSession.TVPlayback? = nil
@@ -33,7 +32,7 @@ struct TVDetailView: View {
         self._selectedEpisode = .init(initialValue: restoredPlayback?.episode)
         self._tvUrl = .init(initialValue: restoredPlayback?.url)
     }
-    init(displayServer: Binding<KTDisplayServer>, result: KTSearchResult, seasonNumber: Int, episodeNumber: Int) {
+    public init(displayServer: Binding<KTDisplayServer>, result: KTSearchResult, seasonNumber: Int, episodeNumber: Int) {
         self._displayServer = displayServer
         self.result = result
         self._selectedSeasonNumber = .init(initialValue: seasonNumber)
@@ -58,7 +57,7 @@ struct TVDetailView: View {
 
     @State private var hideSeasonsAndEpisodes: Bool = false
 
-    var body: some View {
+    public var body: some View {
         GeometryReader { geometry in
             ScrollView {
                 if let tvUrl {

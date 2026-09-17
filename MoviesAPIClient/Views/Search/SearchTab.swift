@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import MoviesAPICore
 
 struct SearchTab: View {
 
