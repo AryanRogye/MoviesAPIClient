@@ -13,6 +13,7 @@ import SharedLogic
 struct TVDetailView: View {
 
     @Environment(TMDBManager.self) var tmdbManager
+    @Environment(PlaybackSession.self) var playbackSession
     @Environment(\.modelContext) var modelContext
 
     @Query var history: [History]
@@ -98,6 +99,11 @@ struct TVDetailView: View {
             }
         }
         .scrollDisabled(hideSeasonsAndEpisodes)
+        .onAppear {
+            if playbackSession.isPlaying(result) {
+                tvUrl = playbackSession.url
+            }
+        }
         .alert(isPresented: $showError) {
             Alert(
                 title: Text("Error"),
@@ -154,7 +160,7 @@ struct TVDetailView: View {
 
                 if tvUrl != nil {
                     Button {
-                        reloadID = UUID()
+                        playbackSession.webView?.reload()
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }
@@ -199,7 +205,7 @@ struct TVDetailView: View {
 
                 modelContext.insert(history)
             }
-
+            playbackSession.start(result: result, url: url)
             self.tvUrl = url
         } catch {
             self.error = error.localizedDescription

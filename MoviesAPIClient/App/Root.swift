@@ -6,25 +6,66 @@
 //
 
 import SwiftUI
+import WebKit
+import SharedLogic
+
+enum TabID: Hashable {
+    case home
+    case library
+    case history
+    case settings
+    case search
+}
+
+@Observable
+@MainActor
+final class PlaybackSession {
+    var webView: WKWebView?
+    var sourceTab: TabID?
+    var title: String?
+    var result: KTSearchResult?
+    var url: URL?
+    private(set) var activationID = UUID()
+
+    var isActive: Bool {
+        result != nil && url != nil
+    }
+
+    func start(result: KTSearchResult, url: URL) {
+        if self.url != url {
+            webView = nil
+        }
+
+        self.result = result
+        self.url = url
+        title = result.title ?? result.name
+        activationID = UUID()
+    }
+
+    func isPlaying(_ result: KTSearchResult) -> Bool {
+        self.result?.id == result.id && url != nil
+    }
+}
 
 struct Root: View {
 
-    private enum TabID: Hashable {
-        case home
-        case library
-        case history
-        case settings
-        case search
-    }
 
     @State private var tmdbManager: TMDBManager?
     @State private var blockingService = BlockingService()
+    @State private var playbackSession = PlaybackSession()
 
     @State private var selectedTab: TabID = .home
+    @State private var homePath: [PlaybackRoute] = []
+    @State private var libraryPath: [PlaybackRoute] = []
+    @State private var historyPath: [PlaybackRoute] = []
+    @State private var settingsPath: [PlaybackRoute] = []
+    @State private var searchPath: [PlaybackRoute] = []
     @State private var searchText = ""
     @State private var isSearching = false
     @State private var error: String?
     @State private var showError: Bool = false
+
+    @Environment(\.tabViewBottomAccessoryPlacement) var placement
 
     var body: some View {
         VStack {
@@ -32,37 +73,73 @@ struct Root: View {
                 TabView(selection: $selectedTab) {
 
                     Tab("Home", systemImage: "house", value: .home) {
-                        NavigationStack {
+                        NavigationStack(path: $homePath) {
                             Home()
+                                .navigationDestination(for: PlaybackRoute.self) { _ in
+                                    PlaybackDestination()
+                                }
                         }
                     }
 
                     Tab("Library", systemImage: "building.columns", value: .library) {
-                        NavigationStack {
+                        NavigationStack(path: $libraryPath) {
                             Library()
+                                .navigationDestination(for: PlaybackRoute.self) { _ in
+                                    PlaybackDestination()
+                                }
                         }
                     }
 
                     Tab("History", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90", value: .history) {
-                        NavigationStack {
+                        NavigationStack(path: $historyPath) {
                             HistoryView()
+                                .navigationDestination(for: PlaybackRoute.self) { _ in
+                                    PlaybackDestination()
+                                }
                         }
                     }
 
                     Tab("Settings", systemImage: "gear", value: .settings) {
-                        NavigationStack {
+                        NavigationStack(path: $settingsPath) {
                             SettingsView()
+                                .navigationDestination(for: PlaybackRoute.self) { _ in
+                                    PlaybackDestination()
+                                }
                         }
                     }
 
                     Tab(value: .search, role: .search) {
-                        NavigationStack {
+                        NavigationStack(path: $searchPath) {
                             SearchTab()
+                                .navigationDestination(for: PlaybackRoute.self) { _ in
+                                    PlaybackDestination()
+                                }
                         }
                     }
                 }
+                .onChange(of: playbackSession.activationID) {
+                    playbackSession.sourceTab = selectedTab
+                }
+                .tabViewBottomAccessory(isEnabled: playbackSession.isActive) {
+                    Button(action: returnToPlayback) {
+                        HStack {
+                            Image(systemName: "play.fill")
+
+                            Text(playbackSession.title ?? "Now Playing")
+                                .lineLimit(1)
+
+                            Spacer()
+
+                            Label("Return", systemImage: "arrow.up.right")
+                                .labelStyle(.iconOnly)
+                        }
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                }
                 .environment(tmdbManager)
                 .environment(blockingService)
+                .environment(playbackSession)
                 .modifier(
                     SearchTabModifier(
                         isSearchTabSelected: selectedTab == .search,
@@ -90,6 +167,31 @@ struct Root: View {
         }
     }
 
+    private func returnToPlayback() {
+        guard let sourceTab = playbackSession.sourceTab else { return }
+
+        selectedTab = sourceTab
+        let route = PlaybackRoute.player(playbackSession.activationID)
+
+        switch sourceTab {
+        case .home:
+            append(route, to: &homePath)
+        case .library:
+            append(route, to: &libraryPath)
+        case .history:
+            append(route, to: &historyPath)
+        case .settings:
+            append(route, to: &settingsPath)
+        case .search:
+            append(route, to: &searchPath)
+        }
+    }
+
+    private func append(_ route: PlaybackRoute, to path: inout [PlaybackRoute]) {
+        guard path.last != route else { return }
+        path.append(route)
+    }
+
     private func search(using manager: TMDBManager) {
         guard !isSearching else { return }
 
@@ -111,6 +213,26 @@ struct Root: View {
         }
     }
 
+}
+
+private enum PlaybackRoute: Hashable {
+    case player(UUID)
+}
+
+private struct PlaybackDestination: View {
+
+    @Environment(PlaybackSession.self) private var playbackSession
+
+    var body: some View {
+        if let result = playbackSession.result {
+            WatchDetailView(result: result)
+        } else {
+            ContentUnavailableView(
+                "Nothing Playing",
+                systemImage: "play.slash"
+            )
+        }
+    }
 }
 
 private struct SearchTabModifier: ViewModifier {

@@ -12,6 +12,7 @@ import SharedLogic
 struct MovieDetailView: View {
 
     @Environment(\.modelContext) var modelContext
+    @Environment(PlaybackSession.self) var playbackSession
 
     @Query var history: [History]
     @Binding var displayServer: KTDisplayServer
@@ -131,6 +132,12 @@ struct MovieDetailView: View {
             }
         }
         .frame(maxWidth: .infinity)
+        .onAppear {
+            if playbackSession.isPlaying(result) {
+                movieUrl = playbackSession.url
+                hasLoadedMovie = true
+            }
+        }
         .onChange(of: displayServer) {
             if hasLoadedMovie {
                 movieUrl = nil
@@ -151,7 +158,7 @@ struct MovieDetailView: View {
 
                 if movieUrl != nil {
                     Button {
-                        reloadID = UUID()
+                        playbackSession.webView?.reload()
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }
@@ -189,7 +196,7 @@ struct MovieDetailView: View {
                 modelContext.insert(history)
             }
 
-
+            playbackSession.start(result: result, url: url)
 
             movieUrl = url
             hasLoadedMovie = true

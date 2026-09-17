@@ -31,6 +31,7 @@ final class EmbeddedMovieViewModel {
 
 struct EmbeddedMovieView: View {
 
+    @Environment(PlaybackSession.self) var playbackSession
     @Environment(BlockingService.self) var blockingService
     @State var vm: EmbeddedMovieViewModel = .init()
     let url: URL
@@ -38,6 +39,7 @@ struct EmbeddedMovieView: View {
     var body: some View {
         WebView(
             vm: vm,
+            playbackSession: playbackSession,
             blockingService: blockingService,
             url: url
         )
@@ -77,11 +79,18 @@ private typealias Representable = NSViewRepresentable
 struct WebView: Representable {
 
     @Bindable var vm: EmbeddedMovieViewModel
+    @Bindable var playbackSession: PlaybackSession
     let blockingService: BlockingService
     let url: URL
 
     #if os(iOS)
     func makeUIView(context: Context) -> WKWebView {
+
+        if let webView = playbackSession.webView {
+            blockingService.attachNetworkFilters(to: webView)
+            context.coordinator.attach(to: webView)
+            return webView
+        }
 
         let config = WKWebViewConfiguration()
         config.preferences.javaScriptCanOpenWindowsAutomatically = false
@@ -99,6 +108,8 @@ struct WebView: Representable {
         wv.layer.shouldRasterize = false
         wv.scrollView.decelerationRate = .normal
 
+        playbackSession.webView = wv
+
         blockingService.attachNetworkFilters(to: wv)
         context.coordinator.attach(to: wv)
         wv.load(url)
@@ -108,6 +119,12 @@ struct WebView: Representable {
     func updateUIView(_ uiView: WKWebView, context: Context) {}
     #elseif os(macOS)
     func makeNSView(context: Context) -> WKWebView {
+
+        if let webView = playbackSession.webView {
+            blockingService.attachNetworkFilters(to: webView)
+            context.coordinator.attach(to: webView)
+            return webView
+        }
 
         let config = WKWebViewConfiguration()
         config.preferences.javaScriptCanOpenWindowsAutomatically = false
@@ -122,6 +139,8 @@ struct WebView: Representable {
         wv.allowsBackForwardNavigationGestures = false
         wv.layer?.drawsAsynchronously = true
         wv.layer?.shouldRasterize = false
+
+        playbackSession.webView = wv
 
         blockingService.attachNetworkFilters(to: wv)
         context.coordinator.attach(to: wv)
