@@ -49,6 +49,9 @@ final class PlaybackSession {
 
 struct Root: View {
 
+    private enum PlaybackRoute: Hashable {
+        case player(UUID)
+    }
 
     @State private var tmdbManager: TMDBManager?
     @State private var blockingService = BlockingService()
@@ -173,6 +176,11 @@ struct Root: View {
         selectedTab = sourceTab
         let route = PlaybackRoute.player(playbackSession.activationID)
 
+        func append(_ route: PlaybackRoute, to path: inout [PlaybackRoute]) {
+            guard path.last != route else { return }
+            path.append(route)
+        }
+
         switch sourceTab {
         case .home:
             append(route, to: &homePath)
@@ -185,11 +193,6 @@ struct Root: View {
         case .search:
             append(route, to: &searchPath)
         }
-    }
-
-    private func append(_ route: PlaybackRoute, to path: inout [PlaybackRoute]) {
-        guard path.last != route else { return }
-        path.append(route)
     }
 
     private func search(using manager: TMDBManager) {
@@ -213,26 +216,6 @@ struct Root: View {
         }
     }
 
-}
-
-private enum PlaybackRoute: Hashable {
-    case player(UUID)
-}
-
-private struct PlaybackDestination: View {
-
-    @Environment(PlaybackSession.self) private var playbackSession
-
-    var body: some View {
-        if let result = playbackSession.result {
-            WatchDetailView(result: result)
-        } else {
-            ContentUnavailableView(
-                "Nothing Playing",
-                systemImage: "play.slash"
-            )
-        }
-    }
 }
 
 private struct SearchTabModifier: ViewModifier {
