@@ -11,6 +11,7 @@ import SharedLogic
 struct KTMoviesView: View {
 
     @Environment(TMDBManager.self) var tmdbManager
+    @Environment(PlaybackSession.self) var playbackSession
 
     let movies: [KTMovieListResult]
     @Binding var error: String?
@@ -40,6 +41,7 @@ struct KTMoviesView: View {
                             mediaType: .movie
                         )
                         .onTapGesture {
+                            playbackSession.stop()
                             resolve(popularMovie)
                         }
                         .overlay {

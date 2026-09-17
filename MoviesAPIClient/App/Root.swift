@@ -24,6 +24,12 @@ final class PlaybackSession {
     var sourceTab: TabID?
     var title: String?
     var result: KTSearchResult?
+
+    var selectedEpisode: KTEpisode?
+    var seasonInfo: KTSeasonInfo?
+    var selectedSeasonNumber: Int?
+    var selectedEpisodeNumber: Int?
+
     var url: URL?
     private(set) var activationID = UUID()
 
@@ -31,10 +37,31 @@ final class PlaybackSession {
         result != nil && url != nil
     }
 
-    func start(result: KTSearchResult, url: URL) {
+    func stop() {
+        self.webView?.stopLoading()
+        self.webView?.navigationDelegate = nil
+        self.webView?.uiDelegate = nil
+        self.webView = nil
+
+        self.sourceTab = nil
+        self.title = nil
+        self.result = nil
+        self.url = nil
+        self.selectedEpisode = nil
+        self.seasonInfo = nil
+        self.selectedSeasonNumber = nil
+        self.selectedEpisodeNumber = nil
+    }
+
+    func start(result: KTSearchResult, url: URL, seasonInfo: KTSeasonInfo? = nil, selectedEpisode: KTEpisode? = nil, selectedSeasonNumber: Int? = nil, selectedEpisodeNumber: Int? = nil) {
         if self.url != url {
             webView = nil
         }
+
+        self.seasonInfo = seasonInfo
+        self.selectedEpisode = selectedEpisode
+        self.selectedSeasonNumber = selectedSeasonNumber
+        self.selectedEpisodeNumber = selectedEpisodeNumber
 
         self.result = result
         self.url = url
@@ -136,6 +163,8 @@ struct Root: View {
                             Label("Return", systemImage: "arrow.up.right")
                                 .labelStyle(.iconOnly)
                         }
+                        .padding(4)
+                        .padding(.horizontal, 8)
                         .contentShape(.rect)
                     }
                     .buttonStyle(.plain)

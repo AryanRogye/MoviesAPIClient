@@ -11,6 +11,7 @@ import SharedLogic
 struct TrendingView: View {
 
     @Environment(TMDBManager.self) var tmdbManager
+    @Environment(PlaybackSession.self) var playbackSession
 
     let filter: LibraryFilter
     @Binding var error: String?
@@ -55,6 +56,7 @@ struct TrendingView: View {
                             mediaType: trending.mediaType
                         )
                         .onTapGesture {
+                            playbackSession.stop()
                             resolve(trending)
                         }
                         .overlay {

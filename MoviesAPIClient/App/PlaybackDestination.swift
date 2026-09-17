@@ -13,7 +13,7 @@ struct PlaybackDestination: View {
 
     var body: some View {
         if let result = playbackSession.result {
-            WatchDetailView(result: result)
+            WatchDetailView(result: result, restoresPlayback: true)
         } else {
             ContentUnavailableView(
                 "Nothing Playing",

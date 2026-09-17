@@ -14,10 +14,12 @@ struct MovieDetailView: View {
 
     @Environment(\.modelContext) var modelContext
     @Environment(PlaybackSession.self) var playbackSession
+    @Environment(\.dismiss) var dismiss
 
     @Query var history: [History]
     @Binding var displayServer: KTDisplayServer
     let result: KTSearchResult
+    let restoresPlayback: Bool
 
     @State private var error: String?
     @State private var showError: Bool = false
@@ -132,9 +134,10 @@ struct MovieDetailView: View {
                 }
             }
         }
+        .navigationBarBackButtonHidden()
         .frame(maxWidth: .infinity)
         .onAppear {
-            if playbackSession.isPlaying(result) {
+            if restoresPlayback && playbackSession.isPlaying(result) {
                 movieUrl = playbackSession.url
                 hasLoadedMovie = true
             }
@@ -147,6 +150,16 @@ struct MovieDetailView: View {
             }
         }
         .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button {
+                    if playbackSession.isPlaying(result) {
+                        playbackSession.stop()
+                    }
+                    dismiss()
+                } label: {
+                    Image(systemName: "chevron.backward")
+                }
+            }
             ToolbarItemGroup(placement: .primaryAction) {
                 Picker("Server", selection: $displayServer) {
                     ForEach(KTDisplayServer.entries, id: \.self) { server in
@@ -265,7 +278,8 @@ private struct MovieImageView: View {
                 """,
                     releaseDate: nil,
                     firstAirDate: nil
-                )
+                ),
+                restoresPlayback: false
             )
             .environment(tmdbManager)
             .environment(BlockingService())

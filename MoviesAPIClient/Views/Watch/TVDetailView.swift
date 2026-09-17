@@ -15,18 +15,22 @@ struct TVDetailView: View {
     @Environment(TMDBManager.self) var tmdbManager
     @Environment(PlaybackSession.self) var playbackSession
     @Environment(\.modelContext) var modelContext
+    @Environment(\.dismiss) var dismiss
 
     @Query var history: [History]
     @Binding var displayServer: KTDisplayServer
     let result: KTSearchResult
+    let restoresPlayback: Bool
 
-    init(displayServer: Binding<KTDisplayServer>, result: KTSearchResult) {
+    init(displayServer: Binding<KTDisplayServer>, result: KTSearchResult, restoresPlayback: Bool) {
         self._displayServer = displayServer
         self.result = result
+        self.restoresPlayback = restoresPlayback
     }
-    init(displayServer: Binding<KTDisplayServer>, result: KTSearchResult, seasonNumber: Int, episodeNumber: Int) {
+    init(displayServer: Binding<KTDisplayServer>, result: KTSearchResult, seasonNumber: Int, episodeNumber: Int, restoresPlayback: Bool) {
         self._displayServer = displayServer
         self.result = result
+        self.restoresPlayback = restoresPlayback
         self._selectedSeasonNumber = .init(initialValue: seasonNumber)
         self._selectedEpisodeNumber = .init(initialValue: episodeNumber)
     }
@@ -99,9 +103,16 @@ struct TVDetailView: View {
             }
         }
         .scrollDisabled(hideSeasonsAndEpisodes)
+        .navigationBarBackButtonHidden()
         .onAppear {
-            if playbackSession.isPlaying(result) {
-                tvUrl = playbackSession.url
+            if restoresPlayback {
+                if playbackSession.isPlaying(result) {
+                    tvUrl = playbackSession.url
+                    selectedEpisodeNumber = playbackSession.selectedEpisodeNumber
+                    selectedSeasonNumber = playbackSession.selectedSeasonNumber
+                    seasonInfo = playbackSession.seasonInfo
+                    selectedEpisode = playbackSession.selectedEpisode
+                }
             }
         }
         .alert(isPresented: $showError) {
@@ -112,6 +123,17 @@ struct TVDetailView: View {
         }
         .onChange(of: selectedEpisode) { _, newValue in
             if let newValue, let selectedSeasonNumber {
+                let restoringCurrentEpisode =
+                playbackSession.isPlaying(result) &&
+                selectedSeasonNumber == playbackSession.selectedSeasonNumber &&
+                newValue.episodeNumber == playbackSession.selectedEpisode?.episodeNumber &&
+                tvUrl == playbackSession.url &&
+                restoresPlayback
+
+                if restoringCurrentEpisode {
+                    return
+                }
+
                 self.tvUrl = nil
                 reloadID = UUID()
                 loadTVShow(season: selectedSeasonNumber, episode: Int(newValue.episodeNumber))
@@ -119,6 +141,16 @@ struct TVDetailView: View {
         }
         .onChange(of: selectedSeasonNumber) { _, newValue in
             if let newValue {
+                let restoringCurrentSeason =
+                    playbackSession.isPlaying(result) &&
+                    newValue == playbackSession.selectedSeasonNumber &&
+                    selectedEpisodeNumber == playbackSession.selectedEpisodeNumber &&
+                    restoresPlayback
+
+                if restoringCurrentSeason {
+                    return
+                }
+
                 seasonInfo = nil
                 selectedEpisode = nil
                 selectedEpisodeNumber = nil
@@ -133,11 +165,26 @@ struct TVDetailView: View {
             }
         }
         .task {
-            if let selectedSeasonNumber, let selectedEpisodeNumber {
-                loadSeason(season: selectedSeasonNumber, pickingEpisode: selectedEpisodeNumber)
+            if !restoresPlayback,
+               let selectedSeasonNumber,
+               let selectedEpisodeNumber {
+                loadSeason(
+                    season: selectedSeasonNumber,
+                    pickingEpisode: selectedEpisodeNumber
+                )
             }
         }
         .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button {
+                    if playbackSession.isPlaying(result) {
+                        playbackSession.stop()
+                    }
+                    dismiss()
+                } label: {
+                    Image(systemName: "chevron.backward")
+                }
+            }
             ToolbarItemGroup(placement: .primaryAction) {
 #if os(macOS)
                 Button {
@@ -205,7 +252,14 @@ struct TVDetailView: View {
 
                 modelContext.insert(history)
             }
-            playbackSession.start(result: result, url: url)
+            playbackSession.start(
+                result: result,
+                url: url,
+                seasonInfo: seasonInfo,
+                selectedEpisode: selectedEpisode,
+                selectedSeasonNumber: selectedSeasonNumber,
+                selectedEpisodeNumber: selectedEpisode.map { Int($0.episodeNumber) }
+            )
             self.tvUrl = url
         } catch {
             self.error = error.localizedDescription
@@ -447,7 +501,8 @@ private struct EpisodesView: View {
             """,
                     releaseDate: nil,
                     firstAirDate: nil
-                )
+                ),
+                restoresPlayback: false
             )
             .environment(tmdbManager)
             .environment(BlockingService())

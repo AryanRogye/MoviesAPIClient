@@ -13,6 +13,7 @@ struct HistoryView: View {
 
     @Environment(TMDBManager.self) var tmdbManager
     @Environment(BlockingService.self) var blockingService
+    @Environment(PlaybackSession.self) var playbackSession
 
     @Environment(\.modelContext) var modelContext
 
@@ -51,6 +52,7 @@ struct HistoryView: View {
                     ForEach(history, id: \.id) { item in
                         HistoryRow(history: item)
                             .onTapGesture {
+                                playbackSession.stop()
                                 resolve(item)
                             }
                             .overlay {
@@ -87,7 +89,8 @@ struct HistoryView: View {
                                     displayServer: displayServerBinding,
                                     result: searchResult,
                                     seasonNumber: season,
-                                    episodeNumber: episode
+                                    episodeNumber: episode,
+                                    restoresPlayback: false
                                 )
                                 .environment(tmdbManager)
                                 .environment(blockingService)
@@ -95,7 +98,8 @@ struct HistoryView: View {
                         case .movie:
                                 MovieDetailView(
                                     displayServer: displayServerBinding,
-                                    result: searchResult
+                                    result: searchResult,
+                                    restoresPlayback: false
                                 )
                                 .environment(tmdbManager)
                                 .environment(blockingService)

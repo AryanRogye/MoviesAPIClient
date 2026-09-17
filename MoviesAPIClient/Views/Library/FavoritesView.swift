@@ -12,6 +12,7 @@ import SharedLogic
 struct FavoritesView: View {
 
     @Environment(TMDBManager.self) var tmdbManager
+    @Environment(PlaybackSession.self) var playbackSession
     @Query var favorites: [Favorite]
 
     let filter: LibraryFilter
@@ -51,6 +52,7 @@ struct FavoritesView: View {
             ForEach(filteredFavorites, id: \.id) { favorite in
                 FavoriteRow(favorite: favorite)
                     .onTapGesture {
+                        playbackSession.stop()
                         resolve(favorite)
                     }
                     .overlay {

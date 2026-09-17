@@ -12,20 +12,30 @@ import SharedLogic
 struct SearchResultsView: View {
 
     @Environment(\.modelContext) var modelContext
+    @Environment(PlaybackSession.self) var playbackSession
     @Query var favorites: [Favorite]
     let searchResults: [KTSearchResult]
 
+    @State private var selectedResult: KTSearchResult?
+    @State private var showDetail = false
+
     var body: some View {
         ForEach(searchResults, id: \.id) { result in
-            NavigationLink {
-                WatchDetailView(result: result)
-            } label: {
-                SearchResultsRow(result: result)
-                    .contextMenu {
-                        contextMenu(result: result)
-                    }
+            SearchResultsRow(result: result)
+                .contextMenu {
+                    contextMenu(result: result)
+                }
+                .contentShape(.rect)
+                .onTapGesture {
+                    playbackSession.stop()
+                    selectedResult = result
+                    showDetail = true
+                }
+        }
+        .navigationDestination(isPresented: $showDetail) {
+            if let selectedResult {
+                WatchDetailView(result: selectedResult)
             }
-            .buttonStyle(.plain)
         }
     }
 
