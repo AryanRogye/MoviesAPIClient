@@ -24,11 +24,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -118,13 +120,15 @@ private fun MainShell(appState: MoviesAppState, blockingService: AndroidBlocking
             Text("MOVIES", fontWeight = FontWeight.Black, letterSpacing = 3.sp, modifier = Modifier.padding(12.dp))
             Spacer(Modifier.height(24.dp))
             NavButton("⌂  Home", selectedTab == MainTab.HOME) { appState.selectTab(MainTab.HOME) }
+            NavButton("▤  Library", selectedTab == MainTab.LIBRARY) { appState.selectTab(MainTab.LIBRARY) }
             NavButton("↺  History", selectedTab == MainTab.HISTORY) { appState.selectTab(MainTab.HISTORY) }
-            NavButton("⌕  Search", selectedTab == MainTab.SEARCH) { appState.selectTab(MainTab.SEARCH) }
             NavButton("⚙  Settings", selectedTab == MainTab.SETTINGS) { appState.selectTab(MainTab.SETTINGS) }
+            NavButton("⌕  Search", selectedTab == MainTab.SEARCH) { appState.selectTab(MainTab.SEARCH) }
         }
         Box(Modifier.weight(1f).fillMaxHeight().padding(end = 28.dp)) {
             when (selectedTab) {
                 MainTab.HOME -> HomeScreen(appState)
+                MainTab.LIBRARY -> LibraryScreen(appState)
                 MainTab.HISTORY -> HistoryScreen(appState)
                 MainTab.SEARCH -> SearchScreen(appState)
                 MainTab.SETTINGS -> SettingsScreen(appState, blockingService)
@@ -141,6 +145,69 @@ private fun NavButton(label: String, selected: Boolean, onClick: () -> Unit) {
 @Composable
 private fun HomeScreen(appState: MoviesAppState) {
     val scope = rememberCoroutineScope()
+    LaunchedEffect(appState) { appState.loadHome() }
+    Column(Modifier.fillMaxSize()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ScreenTitle("Home")
+            Spacer(Modifier.weight(1f))
+            FilterButtons(appState.homeFilter) { appState.homeFilter = it }
+        }
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            items(appState.discovery, key = { it.title }) { section ->
+                Column {
+                    Text(section.title, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp, bottom = 12.dp))
+                    val visible = section.items.filter { item ->
+                        (appState.includeAdult || !item.adult) &&
+                            (section.title != "Trending" || when (appState.homeFilter) {
+                                LibraryFilter.ALL -> true
+                                LibraryFilter.TV -> item.result.mediaType == KTMediaType.TV
+                                LibraryFilter.MOVIES -> item.result.mediaType == KTMediaType.MOVIE
+                            })
+                    }
+                    when {
+                        section.loading -> Box(Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                        section.error != null -> Column {
+                            Text(section.error, color = Color.White.copy(alpha = .65f))
+                            FocusButton("Retry", modifier = Modifier.padding(top = 8.dp)) { scope.launch { appState.loadHome() } }
+                        }
+                        visible.isEmpty() -> Text("No titles available", color = Color.White.copy(alpha = .65f))
+                        else -> LazyHorizontalGrid(
+                            rows = GridCells.Fixed(2),
+                            modifier = Modifier.fillMaxWidth().height(404.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            items(visible, key = { "${it.result.mediaType.rawValue}:${it.result.id}" }) { item ->
+                                FocusSurface(modifier = Modifier.width(110.dp), onClick = { appState.openDetail(item.result) }) {
+                                    Column {
+                                        Box {
+                                            Poster(item.imagePath, item.result.displayName(), Modifier.width(110.dp).height(165.dp))
+                                            Text(item.result.mediaType.rawValue, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.align(Alignment.TopEnd).padding(5.dp).background(Color.Black.copy(alpha = .6f), CircleShape).padding(horizontal = 5.dp, vertical = 3.dp))
+                                        }
+                                        Text(item.result.displayName(), fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilterButtons(selected: LibraryFilter, onSelect: (LibraryFilter) -> Unit) {
+    LibraryFilter.entries.forEach { filter ->
+        FocusButton(when (filter) { LibraryFilter.ALL -> "All"; LibraryFilter.TV -> "TV"; LibraryFilter.MOVIES -> "Movies" },
+            selected = selected == filter, modifier = Modifier.padding(start = 8.dp)) { onSelect(filter) }
+    }
+}
+
+@Composable
+private fun LibraryScreen(appState: MoviesAppState) {
+    val scope = rememberCoroutineScope()
     val favorites = appState.favorites.filter {
         when (appState.libraryFilter) {
             LibraryFilter.ALL -> true
@@ -150,15 +217,9 @@ private fun HomeScreen(appState: MoviesAppState) {
     }
     Column(Modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            ScreenTitle("Home")
+            ScreenTitle("Library")
             Spacer(Modifier.weight(1f))
-            LibraryFilter.entries.forEach { filter ->
-                FocusButton(
-                    filter.name.lowercase().replaceFirstChar { it.uppercase() },
-                    selected = appState.libraryFilter == filter,
-                    modifier = Modifier.padding(start = 8.dp),
-                ) { appState.libraryFilter = filter }
-            }
+            FilterButtons(appState.libraryFilter) { appState.libraryFilter = it }
         }
         Spacer(Modifier.height(18.dp))
         if (appState.favorites.isEmpty()) {
@@ -166,6 +227,7 @@ private fun HomeScreen(appState: MoviesAppState) {
         } else if (favorites.isEmpty()) {
             EmptyMessage("Nothing in this filter", "Try All or another media type.")
         } else {
+            Text("Favorites", fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(150.dp),
                 horizontalArrangement = Arrangement.spacedBy(18.dp),
@@ -185,7 +247,7 @@ private fun HomeScreen(appState: MoviesAppState) {
 
 @Composable
 private fun SearchScreen(appState: MoviesAppState) {
-    var query by remember { mutableStateOf("") }
+    var query by appState::searchQuery
     var editing by remember { mutableStateOf(false) }
     val editorFocus = remember { FocusRequester() }
     val searchFieldFocus = remember { FocusRequester() }
@@ -562,7 +624,7 @@ private fun Hero(result: KTSearchResult, backdropPath: String? = null, playLabel
         )
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .2f), Color.Black))))
         Column(Modifier.align(Alignment.BottomStart).fillMaxWidth(.72f).padding(30.dp)) {
-            Text(result.displayName(), fontSize = 42.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(result.displayName(), fontSize = 42.sp, lineHeight = 48.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(result.overview.orEmpty(), maxLines = 3, overflow = TextOverflow.Ellipsis, color = Color.White.copy(alpha = .78f), lineHeight = 22.sp, modifier = Modifier.padding(vertical = 12.dp))
             playLabel?.let { FocusButton(it, onClick = onPlay) }
         }

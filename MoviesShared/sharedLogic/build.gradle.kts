@@ -1,9 +1,29 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest
+import java.util.Properties
+
+val localProperties = Properties()
+rootProject.file("local.properties").takeIf { it.isFile }?.inputStream()?.use { stream ->
+    localProperties.load(stream)
+}
+
+val tmdbTestToken = providers.gradleProperty("TMDB_API_READ_ACCESS_TOKEN")
+    .orElse(providers.environmentVariable("TMDB_API_READ_ACCESS_TOKEN"))
+    .orElse(localProperties.getProperty("TMDB_API_READ_ACCESS_TOKEN", ""))
+    .getOrElse("")
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidMultiplatformLibrary)
     alias(libs.plugins.kotlinSerialization)
+}
+
+tasks.withType<Test>().configureEach {
+    environment("TMDB_API_READ_ACCESS_TOKEN", tmdbTestToken)
+}
+
+tasks.withType<KotlinNativeTest>().configureEach {
+    environment("TMDB_API_READ_ACCESS_TOKEN", tmdbTestToken)
 }
 
 kotlin {
@@ -62,6 +82,7 @@ kotlin {
 
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
         }
     }
 }

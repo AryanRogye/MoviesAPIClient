@@ -29,6 +29,35 @@ final class TMDBManager {
 
     private let tmdbClient = TMDBClient()
     private let token: String
+
+    private var fullTrendingResults: [KTTrendingResult] = []
+    private var fullPopularMovieResults: [KTMovieListResult] = []
+    private var fullTopRatedMovieResults: [KTMovieListResult] = []
+    private var fullNowPlayingMovieResults: [KTMovieListResult] = []
+
+    public var trendingResults: [KTTrendingResult] {
+        fullTrendingResults.filter { result in
+            includeAdult || !result.adult
+        }
+    }
+    public var popularMovies: [KTMovieListResult] {
+        fullPopularMovieResults.filter { result in
+            includeAdult || !result.adult
+        }
+    }
+    public var topRatedMovies: [KTMovieListResult] {
+        fullTopRatedMovieResults.filter { result in
+            includeAdult || !result.adult
+        }
+    }
+    public var nowPlayingMovies: [KTMovieListResult] {
+        fullNowPlayingMovieResults.filter { result in
+            includeAdult || !result.adult
+        }
+    }
+
+    private(set) var popularTV: [KTTVListResult] = []
+    private(set) var topRatedTV: [KTTVListResult] = []
     private(set) var searchResults: [KTSearchResult] = []
 
     var includeAdult: Bool = Defaults[.includeAdult] {
@@ -52,6 +81,39 @@ final class TMDBManager {
 
     public func clearSearchResults() {
         self.searchResults = []
+    }
+
+    public func trending() async throws {
+        let response = try await tmdbClient.trending(token: token)
+
+        self.fullTrendingResults = response.results.filter { result in
+            includeAdult || !result.adult
+        }
+    }
+
+    public func nowPlaying() async throws {
+        let result = try await tmdbClient.nowPlayingMovies(token: token, page: 1)
+        fullNowPlayingMovieResults = result.results
+    }
+
+    public func popularMovie() async throws {
+        let result = try await tmdbClient.popularMovies(token: token, page: 1)
+        fullPopularMovieResults = result.results
+    }
+
+    public func popularTV() async throws {
+        let result = try await tmdbClient.popularTV(token: token, page: 1)
+        popularTV = result.results
+    }
+
+    public func topRatedMovie() async throws {
+        let result = try await tmdbClient.topRatedMovies(token: token, page: 1)
+        fullTopRatedMovieResults = result.results
+    }
+
+    public func topRatedTV() async throws {
+        let result = try await tmdbClient.topRatedTV(token: token, page: 1)
+        topRatedTV = result.results
     }
 
     public func seasonInfo(for id: Int, seasonNumber: Int) async throws -> KTSeasonInfo {

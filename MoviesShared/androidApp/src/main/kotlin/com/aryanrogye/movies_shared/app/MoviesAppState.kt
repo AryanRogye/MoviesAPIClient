@@ -18,8 +18,11 @@ import com.aryanrogye.movies_shared.models.KTTVShow
 import com.aryanrogye.movies_shared.network.KTDisplayServer
 import com.aryanrogye.movies_shared.network.TMDBClient
 
-enum class MainTab { HOME, HISTORY, SEARCH, SETTINGS }
+enum class MainTab { HOME, LIBRARY, HISTORY, SETTINGS, SEARCH }
 enum class LibraryFilter { ALL, TV, MOVIES }
+
+data class DiscoveryItem(val result: KTSearchResult, val imagePath: String?, val adult: Boolean = false)
+data class DiscoverySection(val title: String, val items: List<DiscoveryItem> = emptyList(), val loading: Boolean = true, val error: String? = null)
 
 sealed interface AppDestination {
     data class Main(val tab: MainTab) : AppDestination
@@ -42,6 +45,12 @@ class MoviesAppState(context: Context) {
     var destination by mutableStateOf<AppDestination>(AppDestination.Main(MainTab.HOME))
     private var returnTab = MainTab.HOME
     var libraryFilter by mutableStateOf(LibraryFilter.ALL)
+    var homeFilter by mutableStateOf(LibraryFilter.ALL)
+    var searchQuery by mutableStateOf("")
+    val discovery = mutableStateListOf<DiscoverySection>().apply {
+        addAll(listOf("Trending", "Now Playing Movies", "Popular TV Shows", "Popular Movies", "Top Rated TV Shows", "Top Rated Movies").map { DiscoverySection(it) })
+    }
+    private var loadingHome = false
     var displayServer by mutableStateOf(readDisplayServer())
         private set
     var isBusy by mutableStateOf(false)
@@ -50,6 +59,45 @@ class MoviesAppState(context: Context) {
         private set
 
     val isConfigured: Boolean get() = token.isNotEmpty()
+
+    suspend fun loadHome() {
+        if (loadingHome) return
+        loadingHome = true
+        try {
+            discovery.indices.forEach { index ->
+                val section = discovery[index]
+                if (!section.loading && section.error == null) return@forEach
+                discovery[index] = section.copy(loading = true, error = null)
+                try {
+                    val token = tokenOrThrow()
+                    val items = when (index) {
+                        0 -> tmdb.trending(token).results.map {
+                            DiscoveryItem(KTSearchResult(it.id, it.mediaType, it.title, it.name, it.posterPath, it.overview, it.releaseDate, it.firstAirDate), it.backdropPath, it.adult)
+                        }
+                        1, 3, 5 -> {
+                            val movies = when (index) {
+                                1 -> tmdb.nowPlayingMovies(token, 1).results
+                                3 -> tmdb.popularMovies(token, 1).results
+                                else -> tmdb.topRatedMovies(token, 1).results
+                            }
+                            movies.map { DiscoveryItem(KTSearchResult(it.id, KTMediaType.MOVIE, title = it.title, posterPath = it.posterPath, overview = it.overview, releaseDate = it.releaseDate), it.backdropPath, it.adult) }
+                        }
+                        else -> {
+                            val shows = if (index == 2) tmdb.popularTV(token, 1).results else tmdb.topRatedTV(token, 1).results
+                            shows.map { DiscoveryItem(KTSearchResult(it.id, KTMediaType.TV, name = it.name, posterPath = it.posterPath, overview = it.overview, firstAirDate = it.firstAirDate), it.backdropPath) }
+                        }
+                    }
+                    discovery[index] = section.copy(items = items, loading = false)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: Exception) {
+                    discovery[index] = section.copy(loading = false, error = failure.message ?: "Could not load titles.")
+                }
+            }
+        } finally {
+            loadingHome = false
+        }
+    }
 
     suspend fun search(query: String) {
         val trimmed = query.trim()

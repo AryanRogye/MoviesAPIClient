@@ -2,6 +2,27 @@
 
 MoviesAPIClient is a personal movie and TV discovery client with native SwiftUI and Fire TV interfaces. Both clients use the same Kotlin Multiplatform models, TMDB networking, and display-server URL logic.
 
+## Screenshots
+
+### iOS
+
+Home on the iPhone 17 simulator.
+
+<img src="docs/screenshots/ios-home.png" alt="iOS Home showing Trending and Now Playing Movies with Home, Library, History, Settings, and Search tabs" width="320">
+
+### Android / Fire TV
+
+Captured on a Fire TV, showing discovery and movie details.
+
+<img src="docs/screenshots/android-home.png" alt="Fire TV Home with a two-row Trending grid and sidebar navigation" width="800">
+
+<details>
+<summary>Movie details</summary>
+
+<img src="docs/screenshots/android-detail.png" alt="Fire TV movie detail screen for Spider-Man: Brand New Day, with server selection and Play Movie controls" width="800">
+
+</details>
+
 ## What it includes
 
 - TMDB multi-search for movies and TV shows, with optional adult-result filtering

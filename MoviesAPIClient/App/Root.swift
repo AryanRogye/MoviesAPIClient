@@ -11,6 +11,7 @@ struct Root: View {
 
     private enum TabID: Hashable {
         case home
+        case library
         case history
         case settings
         case search
@@ -29,9 +30,16 @@ struct Root: View {
         VStack {
             if let tmdbManager {
                 TabView(selection: $selectedTab) {
+
                     Tab("Home", systemImage: "house", value: .home) {
                         NavigationStack {
                             Home()
+                        }
+                    }
+
+                    Tab("Library", systemImage: "building.columns", value: .library) {
+                        NavigationStack {
+                            Library()
                         }
                     }
 

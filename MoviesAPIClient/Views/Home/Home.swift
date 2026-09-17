@@ -2,48 +2,93 @@
 //  Home.swift
 //  MoviesAPIClient
 //
-//  Created by Aryan Rogye on 9/14/26.
+//  Created by Aryan Rogye on 9/16/26.
 //
 
 import SwiftUI
-import SwiftData
 import SharedLogic
-
-enum LibraryFilter: String, CaseIterable {
-    case all = "All"
-    case tv = "TV"
-    case movies = "Movies"
-
-    var mediaType: KTMediaType? {
-        switch self {
-        case .all:
-            return nil
-        case .tv:
-            return .tv
-        case .movies:
-            return .movie
-        }
-    }
-}
+import SwiftData
 
 struct Home: View {
 
-    @Environment(\.modelContext) var modelContext
-    @Query var favorites: [Favorite]
+    @Environment(TMDBManager.self) var tmdbManager
+
+    @State private var error: String?
+    @State private var showError: Bool = false
 
     @State private var selectedFilter: LibraryFilter = .all
 
     var body: some View {
         ScrollView {
-            if favorites.isEmpty {
-                emptyView
-            } else {
-                FavoritesView(filter: selectedFilter)
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Trending")
+                    .font(.title2.bold())
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                TrendingView(
+                    filter: selectedFilter,
+                    error: $error,
+                    showError: $showError
+                )
+
+                Text("Now Playing Movies")
+                    .font(.title2.bold())
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                KTMoviesView(
+                    movies: tmdbManager.nowPlayingMovies,
+                    error: $error,
+                    showError: $showError
+                )
+
+                Text("Popular TV Shows")
+                    .font(.title2.bold())
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                KTTVView(
+                    tv: tmdbManager.popularTV,
+                    error: $error,
+                    showError: $showError
+                )
+
+                Text("Popular Movies")
+                    .font(.title2.bold())
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                KTMoviesView(
+                    movies: tmdbManager.popularMovies,
+                    error: $error,
+                    showError: $showError
+                )
+
+                Text("Top Rated TV Shows")
+                    .font(.title2.bold())
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                KTTVView(
+                    tv: tmdbManager.topRatedTV,
+                    error: $error,
+                    showError: $showError
+                )
+
+                Text("Top Rated Movies")
+                    .font(.title2.bold())
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                KTMoviesView(
+                    movies: tmdbManager.topRatedMovies,
+                    error: $error,
+                    showError: $showError
+                )
             }
+            .padding(.bottom)
         }
         .navigationTitle("Home")
-        .onChange(of: selectedFilter) { _, newValue in
-            
+        .alert(isPresented: $showError) {
+            Alert(
+                title: Text("Error"),
+                message: Text("\(error, default: "Unknown Error")")
+            )
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -58,13 +103,23 @@ struct Home: View {
                 }
             }
         }
-    }
-
-    private var emptyView: some View {
-        ContentUnavailableView(
-            "No Favorites Yet",
-            systemImage: "heart.slash",
-            description: Text("Movies and shows you favorite will show up here.")
-        )
+        .task {
+            do {
+                try await tmdbManager.trending()
+                try? await Task.sleep(for: .seconds(1))
+                try await tmdbManager.nowPlaying()
+                try? await Task.sleep(for: .seconds(1))
+                try await tmdbManager.popularTV()
+                try? await Task.sleep(for: .seconds(1))
+                try await tmdbManager.popularMovie()
+                try? await Task.sleep(for: .seconds(1))
+                try await tmdbManager.topRatedTV()
+                try? await Task.sleep(for: .seconds(1))
+                try await tmdbManager.topRatedMovie()
+            } catch {
+                self.error = error.localizedDescription
+                self.showError = true
+            }
+        }
     }
 }
