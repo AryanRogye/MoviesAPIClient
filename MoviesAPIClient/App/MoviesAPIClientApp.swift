@@ -15,7 +15,7 @@ struct MoviesAPIClientApp: App {
             Root()
                 .preferredColorScheme(.dark)
         }
-        .modelContainer(for: [Favorite.self, History.self])
+        .modelContainer(for: [Favorite.self, Collection.self, History.self])
 #if os(macOS)
         .windowToolbarStyle(
             .expanded

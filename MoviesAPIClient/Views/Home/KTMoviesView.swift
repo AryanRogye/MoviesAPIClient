@@ -6,12 +6,15 @@
 //
 
 import SwiftUI
+import SwiftData
 import SharedLogic
 
 struct KTMoviesView: View {
 
     @Environment(TMDBManager.self) var tmdbManager
     @Environment(PlaybackSession.self) var playbackSession
+    @Environment(\.modelContext) var modelContext
+    @Query var favorites: [Favorite]
 
     let movies: [KTMovieListResult]
     @Binding var error: String?
@@ -40,6 +43,9 @@ struct KTMoviesView: View {
                             name: popularMovie.title,
                             mediaType: .movie
                         )
+                        .contextMenu {
+                            contextMenu(result: popularMovie)
+                        }
                         .onTapGesture {
                             playbackSession.stop()
                             resolve(popularMovie)
@@ -63,6 +69,40 @@ struct KTMoviesView: View {
                 WatchDetailView(result: searchResult)
             }
         }
+    }
+
+    @ViewBuilder
+    private func contextMenu(result: KTMovieListResult) -> some View {
+        let isFavorite = isFavorite(result)
+        Button {
+            if isFavorite {
+                if let favorite = favorites.first(where: { $0.id == result.id }) {
+                    modelContext.delete(favorite)
+                }
+            } else {
+                let favorite = Favorite(
+                    id: Int(result.id),
+                    name: result.title,
+                    mediaType: KTMediaType.movie.rawValue,
+                    posterPath: result.posterPath
+                )
+                modelContext.insert(favorite)
+            }
+        } label: {
+            Label(
+                isFavorite ? "Unfavorite" : "Favorite",
+                systemImage: isFavorite ? "star.slash.fill" : "star.fill"
+            )
+        }
+    }
+
+    func isFavorite(_ result: KTMovieListResult) -> Bool {
+        for favorite in favorites {
+            if result.id == favorite.id && favorite.mediaType == KTMediaType.movie.rawValue {
+                return true
+            }
+        }
+        return false
     }
 
     private func resolve(_ popularMovie: KTMovieListResult) {

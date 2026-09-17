@@ -66,7 +66,7 @@ struct SearchResultsView: View {
 
     func isFavorite(_ result: KTSearchResult) -> Bool {
         for favorite in favorites {
-            if result.id == favorite.id {
+            if result.id == favorite.id && favorite.mediaType == result.mediaType.rawValue {
                 return true
             }
         }

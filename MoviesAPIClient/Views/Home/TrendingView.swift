@@ -6,12 +6,15 @@
 //
 
 import SwiftUI
+import SwiftData
 import SharedLogic
 
 struct TrendingView: View {
 
     @Environment(TMDBManager.self) var tmdbManager
     @Environment(PlaybackSession.self) var playbackSession
+    @Environment(\.modelContext) var modelContext
+    @Query var favorites: [Favorite]
 
     let filter: LibraryFilter
     @Binding var error: String?
@@ -55,6 +58,9 @@ struct TrendingView: View {
                             name: trending.name ?? trending.title ?? "",
                             mediaType: trending.mediaType
                         )
+                        .contextMenu {
+                            contextMenu(result: trending)
+                        }
                         .onTapGesture {
                             playbackSession.stop()
                             resolve(trending)
@@ -78,6 +84,40 @@ struct TrendingView: View {
                 WatchDetailView(result: searchResult)
             }
         }
+    }
+
+    @ViewBuilder
+    private func contextMenu(result: KTTrendingResult) -> some View {
+        let isFavorite = isFavorite(result)
+        Button {
+            if isFavorite {
+                if let favorite = favorites.first(where: { $0.id == result.id }) {
+                    modelContext.delete(favorite)
+                }
+            } else {
+                let favorite = Favorite(
+                    id: Int(result.id),
+                    name: result.name ?? result.title ?? "",
+                    mediaType: result.mediaType.rawValue,
+                    posterPath: result.posterPath
+                )
+                modelContext.insert(favorite)
+            }
+        } label: {
+            Label(
+                isFavorite ? "Unfavorite" : "Favorite",
+                systemImage: isFavorite ? "star.slash.fill" : "star.fill"
+            )
+        }
+    }
+
+    func isFavorite(_ result: KTTrendingResult) -> Bool {
+        for favorite in favorites {
+            if result.id == favorite.id && result.mediaType.rawValue == favorite.mediaType {
+                return true
+            }
+        }
+        return false
     }
 
     private func resolve(_ trending: KTTrendingResult) {
