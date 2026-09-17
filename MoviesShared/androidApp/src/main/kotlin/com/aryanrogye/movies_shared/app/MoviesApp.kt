@@ -559,6 +559,7 @@ private fun TvDetail(appState: MoviesAppState, blocker: AndroidBlockingService, 
                 )
                 Text("↑ controls", color = Color.White.copy(alpha = .5f))
             }
+            EpisodeInfo(episode)
             MediaWebView(
                 url = tvUrl,
                 reloadKey = reloadKey,
@@ -580,6 +581,40 @@ private fun TvDetail(appState: MoviesAppState, blocker: AndroidBlockingService, 
                     onSeason = { selectedSeason = it },
                     onEpisode = { selectedEpisode = it },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EpisodeInfo(episode: KTEpisode) {
+    var expanded by remember(episode.id) { mutableStateOf(false) }
+    val overview = episode.overview.trim()
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 12.dp),
+    ) {
+        Text(
+            episode.name.ifBlank { "Episode ${episode.episodeNumber}" },
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        if (overview.isNotEmpty()) {
+            Text(
+                overview,
+                maxLines = if (expanded) Int.MAX_VALUE else 2,
+                overflow = TextOverflow.Ellipsis,
+                color = Color.White.copy(alpha = .72f),
+                lineHeight = 20.sp,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            if (overview.length > 160) {
+                FocusButton(
+                    if (expanded) "Show less" else "More",
+                    modifier = Modifier.padding(top = 6.dp),
+                ) { expanded = !expanded }
             }
         }
     }
