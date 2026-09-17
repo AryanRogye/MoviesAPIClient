@@ -53,14 +53,11 @@ struct TVDetailView: View {
             ScrollView {
                 if let tvUrl {
 #if os(iOS)
-                    GeometryReader { proxy in
-                        EmbeddedMovieView(url: tvUrl)
-                            .id(reloadID)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 200)
-                            .padding(.horizontal, 10)
-                    }
-                    .frame(height: 200)
+                    EmbeddedMovieView(url: tvUrl)
+                        .id(reloadID)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 200)
+                        .padding(.horizontal, 10)
 #elseif os(macOS)
                     EmbeddedMovieView(url: tvUrl)
                         .id(reloadID)
@@ -71,7 +68,7 @@ struct TVDetailView: View {
                             : 400
                         )
                         .padding(.horizontal, 10)
-
+                        .padding(.vertical, hideSeasonsAndEpisodes ? 10 : 0)
 #endif
                 } else {
                     EpisodeImageView(
@@ -81,6 +78,11 @@ struct TVDetailView: View {
                 }
 
                 if !hideSeasonsAndEpisodes {
+
+                    TVShowInfo(
+                        selectedEpisode: selectedEpisode
+                    )
+
                     SeasonsView(
                         tvShow: tvShow,
                         isLoadingSeason: isLoadingSeason,
@@ -91,6 +93,7 @@ struct TVDetailView: View {
                         seasonInfo: seasonInfo,
                         selectedEpisode: $selectedEpisode
                     )
+                    .padding(.bottom, 24)
                 }
             }
         }
@@ -296,6 +299,30 @@ private struct EpisodeImageView: View {
     }
 }
 
+private struct TVShowInfo: View {
+    let selectedEpisode: KTEpisode?
+
+    var body: some View {
+        if let selectedEpisode {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(selectedEpisode.name)
+                    .font(.title3)
+                    .fontWeight(.semibold)
+
+                ExpandableText(
+                    text: selectedEpisode.overview,
+                    tintColor: .yellow,
+                    font: .preferredFont(forTextStyle: .body),
+                    background: .black
+                )
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal)
+            .padding(.top, 32)
+        }
+    }
+}
+
 private struct SeasonsView: View {
 
     let tvShow: KTTVShow?
@@ -395,6 +422,7 @@ private struct EpisodesView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     @Previewable @State var tmdbManager: TMDBManager?
 
@@ -417,11 +445,20 @@ private struct EpisodesView: View {
             )
             .environment(tmdbManager)
             .environment(BlockingService())
+            .modelContainer(for: [Favorite.self, History.self], inMemory: true)
         }
     } else {
         ProgressView()
             .task {
-                tmdbManager = try? .init()
+                do {
+                    tmdbManager = try .init(
+                        tmdbClient: TMDBClientPreview(),
+                        token: "preview"
+                    )
+                } catch {
+                    print(error.localizedDescription)
+                }
             }
     }
 }
+#endif

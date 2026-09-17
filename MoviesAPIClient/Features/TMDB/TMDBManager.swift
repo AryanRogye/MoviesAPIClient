@@ -27,7 +27,7 @@ enum TMDBError: LocalizedError {
 @MainActor
 final class TMDBManager {
 
-    private let tmdbClient = TMDBClient()
+    private let tmdbClient: TMDBClientProviding
     private let token: String
 
     private var fullTrendingResults: [KTTrendingResult] = []
@@ -66,7 +66,13 @@ final class TMDBManager {
         }
     }
 
-    init() throws {
+    init(tmdbClient: TMDBClientProviding = TMDBClient(), token tokenOverride: String? = nil) throws {
+        if let tokenOverride {
+            self.tmdbClient = tmdbClient
+            self.token = tokenOverride
+            return
+        }
+
         guard let token = Bundle.main.object(
             forInfoDictionaryKey: "APIReadAccessToken"
         ) as? String else {
@@ -76,6 +82,7 @@ final class TMDBManager {
             throw TMDBError.tokenEmpty
         }
 
+        self.tmdbClient = tmdbClient
         self.token = token
     }
 
