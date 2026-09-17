@@ -65,6 +65,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.aryanrogye.movies_shared.app.components.ExpandableText
 import com.aryanrogye.movies_shared.data.Favorite
 import com.aryanrogye.movies_shared.data.WatchHistory
 import android.text.format.DateUtils
@@ -588,7 +589,6 @@ private fun TvDetail(appState: MoviesAppState, blocker: AndroidBlockingService, 
 
 @Composable
 private fun EpisodeInfo(episode: KTEpisode) {
-    var expanded by remember(episode.id) { mutableStateOf(false) }
     val overview = episode.overview.trim()
 
     Column(
@@ -602,20 +602,10 @@ private fun EpisodeInfo(episode: KTEpisode) {
             fontWeight = FontWeight.SemiBold,
         )
         if (overview.isNotEmpty()) {
-            Text(
-                overview,
-                maxLines = if (expanded) Int.MAX_VALUE else 2,
-                overflow = TextOverflow.Ellipsis,
-                color = Color.White.copy(alpha = .72f),
-                lineHeight = 20.sp,
+            ExpandableText(
+                text = overview,
                 modifier = Modifier.padding(top = 4.dp),
             )
-            if (overview.length > 160) {
-                FocusButton(
-                    if (expanded) "Show less" else "More",
-                    modifier = Modifier.padding(top = 6.dp),
-                ) { expanded = !expanded }
-            }
         }
     }
 }
