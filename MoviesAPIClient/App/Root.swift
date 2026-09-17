@@ -7,7 +7,7 @@
 
 import SwiftUI
 import WebKit
-import SharedLogic
+import MoviesAPICore
 
 enum TabID: Hashable {
     case home

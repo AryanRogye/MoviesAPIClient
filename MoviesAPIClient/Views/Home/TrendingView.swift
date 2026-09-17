@@ -7,7 +7,7 @@
 
 import SwiftUI
 import SwiftData
-import SharedLogic
+import MoviesAPICore
 
 struct TrendingView: View {
 

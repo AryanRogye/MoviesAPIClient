@@ -7,7 +7,7 @@
 
 import Foundation
 import Defaults
-import SharedLogic
+import MoviesAPICore
 
 enum TMDBError: LocalizedError {
     case noToken

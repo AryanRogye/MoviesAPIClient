@@ -6,7 +6,7 @@
 //
 
 #if DEBUG
-import SharedLogic
+import MoviesAPICore
 
 final class TMDBClientPreview: TMDBClientProviding {
     func infoOnTV(id: Int32, token: String) async throws -> KTTVShow {

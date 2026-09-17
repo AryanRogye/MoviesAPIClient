@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
 import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest
 import java.util.Properties
 
@@ -27,6 +28,8 @@ tasks.withType<KotlinNativeTest>().configureEach {
 }
 
 kotlin {
+    val sharedLogicXCFramework = XCFramework("SharedLogic")
+
     listOf(
         iosX64(),
         iosArm64(),
@@ -35,12 +38,14 @@ kotlin {
         iosTarget.binaries.framework {
             baseName = "SharedLogic"
             isStatic = true
+            sharedLogicXCFramework.add(this)
         }
     }
 
     macosArm64().binaries.framework {
         baseName = "SharedLogic"
         isStatic = true
+        sharedLogicXCFramework.add(this)
     }
 
     android {

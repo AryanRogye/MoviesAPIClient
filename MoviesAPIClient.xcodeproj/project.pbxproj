@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		9BE2E9F1305A5D470059DA6C /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = 9BE2E9F0305A5D470059DA6C /* Defaults */; };
+		9BE82336305CA83B003801A2 /* MoviesAPICore in Frameworks */ = {isa = PBXBuildFile; productRef = 9BE82335305CA83B003801A2 /* MoviesAPICore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -69,6 +70,7 @@
 			isa = PBXFrameworksBuildPhase;
 			files = (
 				9BE2E9F1305A5D470059DA6C /* Defaults in Frameworks */,
+				9BE82336305CA83B003801A2 /* MoviesAPICore in Frameworks */,
 			);
 		};
 		9B6EBD963058AC960058478C /* Frameworks */ = {
@@ -124,6 +126,7 @@
 			name = MoviesAPIClient;
 			packageProductDependencies = (
 				9BE2E9F0305A5D470059DA6C /* Defaults */,
+				9BE82335305CA83B003801A2 /* MoviesAPICore */,
 			);
 			productName = MoviesAPIClient;
 			productReference = 9B6EBD8C3058AC940058478C /* MoviesAPIClient.app */;
@@ -205,6 +208,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				9BE2E9EF305A5D470059DA6C /* XCRemoteSwiftPackageReference "Defaults" */,
+				9BE82334305CA83B003801A2 /* XCLocalSwiftPackageReference "MoviesAPICore" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9B6EBD8D3058AC940058478C /* Products */;
@@ -653,6 +657,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		9BE82334305CA83B003801A2 /* XCLocalSwiftPackageReference "MoviesAPICore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = MoviesAPICore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		9BE2E9EF305A5D470059DA6C /* XCRemoteSwiftPackageReference "Defaults" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -669,6 +680,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 9BE2E9EF305A5D470059DA6C /* XCRemoteSwiftPackageReference "Defaults" */;
 			productName = Defaults;
+		};
+		9BE82335305CA83B003801A2 /* MoviesAPICore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = MoviesAPICore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-import SharedLogic
+import MoviesAPICore
 import SwiftData
 
 struct HistoryView: View {

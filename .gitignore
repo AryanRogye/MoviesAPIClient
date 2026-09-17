@@ -10,6 +10,7 @@ xcuserdata/
 .build/
 .swiftpm/
 Packages/
+MoviesAPICore/Frameworks/SharedLogic.xcframework/
 
 # CocoaPods and Carthage
 Pods/

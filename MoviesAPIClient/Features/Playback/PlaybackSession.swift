@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import SharedLogic
+import MoviesAPICore
 import WebKit
 
 @Observable

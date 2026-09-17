@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-import SharedLogic
+import MoviesAPICore
 
 struct SearchResultsRow: View {
     let result: KTSearchResult

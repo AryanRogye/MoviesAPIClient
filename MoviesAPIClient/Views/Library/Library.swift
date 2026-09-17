@@ -7,7 +7,7 @@
 
 import SwiftUI
 import SwiftData
-import SharedLogic
+import MoviesAPICore
 
 enum LibraryFilter: String, CaseIterable {
     case all = "All"
