@@ -139,10 +139,7 @@ struct TVDetailView: View {
         }
         .task {
             if let selectedSeasonNumber, let selectedEpisodeNumber {
-                loadSeason(
-                    season: selectedSeasonNumber,
-                    pickingEpisode: selectedEpisodeNumber
-                )
+                loadSeason(season: selectedSeasonNumber, pickingEpisode: selectedEpisodeNumber)
             }
         }
         .toolbar {
@@ -223,19 +220,24 @@ struct TVDetailView: View {
 
                 modelContext.insert(history)
             }
-            guard let seasonInfo, let selectedEpisode else { return }
-            playbackSession.startEpisode(
-                result: result,
-                url: url,
-                seasonInfo: seasonInfo,
-                episode: selectedEpisode,
-                seasonNumber: season
-            )
+
+            self.startPlaybackSession(with: url, season: season)
             self.tvUrl = url
         } catch {
             self.error = error.localizedDescription
             self.showError = true
         }
+    }
+
+    private func startPlaybackSession(with url: URL, season: Int) {
+        guard let seasonInfo, let selectedEpisode else { return }
+        playbackSession.startEpisode(
+            result: result,
+            url: url,
+            seasonInfo: seasonInfo,
+            episode: selectedEpisode,
+            seasonNumber: season
+        )
     }
 
     private func loadSeason(season: Int, pickingEpisode: Int? = nil) {

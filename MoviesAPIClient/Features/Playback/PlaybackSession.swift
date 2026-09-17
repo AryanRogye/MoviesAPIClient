@@ -52,21 +52,13 @@ final class PlaybackSession {
         playback != nil
     }
 
-    func stop() {
-        self.webView?.stopLoading()
-        self.webView?.navigationDelegate = nil
-        self.webView?.uiDelegate = nil
-        self.webView = nil
-
-        self.sourceTab = nil
-        self.playback = nil
-    }
-
-    func startMovie(result: KTSearchResult, url: URL) {
+    /// Starts Movie Playback session
+    public func startMovie(result: KTSearchResult, url: URL) {
         start(.init(result: result, url: url, episode: nil))
     }
 
-    func startEpisode(
+    /// Starts Episode Playback Session
+    public func startEpisode(
         result: KTSearchResult,
         url: URL,
         seasonInfo: KTSeasonInfo,
@@ -87,15 +79,32 @@ final class PlaybackSession {
         )
     }
 
+    /// Inidcator if we're currently playing the result
+    public func isPlaying(_ result: KTSearchResult) -> Bool {
+        playback?.result.id == result.id
+    }
+
+    public func stop() {
+        self.webView?.stopLoading()
+        self.webView?.navigationDelegate = nil
+        self.webView?.uiDelegate = nil
+        self.webView = nil
+
+        self.sourceTab = nil
+        self.playback = nil
+    }
+
+    /// private Wrapper to start
+    /// clears the webview if we have to
+    /// sets playback
+    ///
+    /// IMPORTANT: before we set any url for the webview we must call this
+    /// this way it'll clear out any stale webviews
     private func start(_ playback: Playback) {
         if self.playback?.url != playback.url {
             webView = nil
         }
         self.playback = playback
         activationID = UUID()
-    }
-
-    func isPlaying(_ result: KTSearchResult) -> Bool {
-        playback?.result.id == result.id
     }
 }
