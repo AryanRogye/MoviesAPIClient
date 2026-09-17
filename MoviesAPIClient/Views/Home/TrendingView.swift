@@ -27,13 +27,28 @@ struct TrendingView: View {
         GridItem(.fixed(180), spacing: 12),
     ]
 
+    var filteredResults: [KTTrendingResult] {
+        switch filter {
+        case .all:
+            tmdbManager.trendingResults
+        case .tv:
+            tmdbManager.trendingResults.filter { result in
+                result.mediaType == .tv
+            }
+        case .movies:
+            tmdbManager.trendingResults.filter { result in
+                result.mediaType == .movie
+            }
+        }
+    }
+
     var body: some View {
         ScrollView(.horizontal) {
             LazyHGrid(rows: trendingRows, spacing: 12) {
                 if tmdbManager.trendingResults.isEmpty {
                     ProgressView()
                 } else {
-                    ForEach(tmdbManager.trendingResults, id: \.id) { trending in
+                    ForEach(filteredResults, id: \.id) { trending in
                         HomeRow(
                             imagePath: trending.backdropPath,
                             name: trending.name ?? trending.title ?? "",

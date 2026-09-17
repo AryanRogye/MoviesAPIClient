@@ -31,55 +31,65 @@ struct Home: View {
                     showError: $showError
                 )
 
-                Text("Now Playing Movies")
-                    .font(.title2.bold())
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-                KTMoviesView(
-                    movies: tmdbManager.nowPlayingMovies,
-                    error: $error,
-                    showError: $showError
-                )
+                if selectedFilter == .movies || selectedFilter == .all {
+                    Text("Now Playing Movies")
+                        .font(.title2.bold())
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                    KTMoviesView(
+                        movies: tmdbManager.nowPlayingMovies,
+                        error: $error,
+                        showError: $showError
+                    )
+                }
 
-                Text("Popular TV Shows")
-                    .font(.title2.bold())
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-                KTTVView(
-                    tv: tmdbManager.popularTV,
-                    error: $error,
-                    showError: $showError
-                )
+                if selectedFilter == .tv || selectedFilter == .all {
+                    Text("Popular TV Shows")
+                        .font(.title2.bold())
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                    KTTVView(
+                        tv: tmdbManager.popularTV,
+                        error: $error,
+                        showError: $showError
+                    )
+                }
 
-                Text("Popular Movies")
-                    .font(.title2.bold())
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-                KTMoviesView(
-                    movies: tmdbManager.popularMovies,
-                    error: $error,
-                    showError: $showError
-                )
+                if selectedFilter == .movies || selectedFilter == .all {
+                    Text("Popular Movies")
+                        .font(.title2.bold())
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                    KTMoviesView(
+                        movies: tmdbManager.popularMovies,
+                        error: $error,
+                        showError: $showError
+                    )
+                }
 
-                Text("Top Rated TV Shows")
-                    .font(.title2.bold())
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-                KTTVView(
-                    tv: tmdbManager.topRatedTV,
-                    error: $error,
-                    showError: $showError
-                )
+                if selectedFilter == .tv || selectedFilter == .all {
+                    Text("Top Rated TV Shows")
+                        .font(.title2.bold())
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                    KTTVView(
+                        tv: tmdbManager.topRatedTV,
+                        error: $error,
+                        showError: $showError
+                    )
+                }
 
-                Text("Top Rated Movies")
-                    .font(.title2.bold())
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-                KTMoviesView(
-                    movies: tmdbManager.topRatedMovies,
-                    error: $error,
-                    showError: $showError
-                )
+                if selectedFilter == .movies || selectedFilter == .all {
+                    Text("Top Rated Movies")
+                        .font(.title2.bold())
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                    KTMoviesView(
+                        movies: tmdbManager.topRatedMovies,
+                        error: $error,
+                        showError: $showError
+                    )
+                }
             }
             .padding(.bottom)
         }
