@@ -10,12 +10,21 @@ import SwiftData
 
 @main
 struct MoviesAPIClientApp: App {
+    private let modelContainer: ModelContainer = {
+        do {
+            let schema = Schema(versionedSchema: MoviesSchemaV2.self)
+            return try ModelContainer(for: schema)
+        } catch {
+            fatalError("Could not create model container: \(error)")
+        }
+    }()
+
     var body: some Scene {
         WindowGroup {
             Root()
                 .preferredColorScheme(.dark)
         }
-        .modelContainer(for: [Favorite.self, Collection.self, History.self])
+        .modelContainer(modelContainer)
 #if os(macOS)
         .windowToolbarStyle(
             .expanded

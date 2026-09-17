@@ -14,10 +14,15 @@ struct SearchResultsView: View {
     @Environment(\.modelContext) var modelContext
     @Environment(PlaybackSession.self) var playbackSession
     @Query var favorites: [Favorite]
+    @Query var collections: [Collection]
     let searchResults: [KTSearchResult]
 
     @State private var selectedResult: KTSearchResult?
     @State private var showDetail = false
+
+    @State private var showCreateCollection: Bool = false
+    @State private var collectionName: String = ""
+    @State private var collectionResultToAdd: KTSearchResult?
 
     var body: some View {
         ForEach(searchResults, id: \.id) { result in
@@ -31,6 +36,40 @@ struct SearchResultsView: View {
                     selectedResult = result
                     showDetail = true
                 }
+        }
+        .alert("Create Collection", isPresented: $showCreateCollection) {
+            TextField("Collection Name", text: $collectionName)
+
+            Button("Cancel", role: .cancel) {
+                collectionName = ""
+                collectionResultToAdd = nil
+            }
+
+            Button("Create") {
+                guard
+                    !collectionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                    let result = collectionResultToAdd
+                        else { return }
+
+                let item = CollectionItem(
+                    resultId: Int(result.id),
+                    name: result.title ?? result.name ?? "",
+                    mediaType: result.mediaType.rawValue,
+                    posterPath: result.posterPath
+                )
+
+                let collection = Collection(
+                    name: collectionName.trimmingCharacters(in: .whitespacesAndNewlines),
+                    results: [item]
+                )
+
+                modelContext.insert(collection)
+
+                collectionName = ""
+                collectionResultToAdd = nil
+            }
+        } message: {
+            Text("Enter a name for your new collection.")
         }
         .navigationDestination(isPresented: $showDetail) {
             if let selectedResult {
@@ -61,6 +100,53 @@ struct SearchResultsView: View {
                 isFavorite ? "Unfavorite" : "Favorite",
                 systemImage: isFavorite ? "star.slash.fill" : "star.fill"
             )
+        }
+
+        Menu {
+            ForEach(collections) { collection in
+                let inCollection = isInCollection(result, collection: collection)
+                Label(
+                    collection.name,
+                    systemImage: inCollection ? "checkmark" : "rectangle.stack"
+                )
+                .onTapGesture {
+                    if inCollection {
+                        collection.results.removeAll(where: {
+                            $0.resultId == result.id && $0.mediaType == result.mediaType.rawValue
+                        })
+                    } else {
+                        collection.results.append(CollectionItem(
+                            resultId: Int(result.id),
+                            name: result.title ?? result.name ?? "",
+                            mediaType: result.mediaType.rawValue,
+                            posterPath: result.posterPath
+                        ))
+                    }
+                }
+            }
+            Button {
+                showCreateCollection = true
+                collectionName = ""
+                collectionResultToAdd = result
+
+            } label: {
+                Label(
+                    "New Collection",
+                    systemImage: "plus"
+                )
+            }
+        } label: {
+            Label("Add To Collection", systemImage: "rectangle.stack.badge.plus")
+        }
+    }
+
+    func isInCollection(
+        _ result: KTSearchResult,
+        collection: Collection
+    ) -> Bool {
+        collection.results.contains {
+            $0.resultId == result.id &&
+            $0.mediaType == result.mediaType.rawValue
         }
     }
 

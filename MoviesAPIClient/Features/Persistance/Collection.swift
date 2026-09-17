@@ -8,15 +8,32 @@
 import SwiftData
 import Foundation
 
+enum PasswordProtectedCollectionState: Codable {
+    case none
+    case password([Int])
+}
+
 @Model
 final class Collection {
-    var id: Int
+    var id: UUID
+    var name: String
+
+    var passwordCollectionState: PasswordProtectedCollectionState
 
     @Relationship(deleteRule: .cascade, inverse: \CollectionItem.collection)
     var results: [CollectionItem]
 
-    init(id: Int, results: [CollectionItem]) {
+    init(id: UUID = UUID(), name: String, results: [CollectionItem]) {
         self.id = id
+        self.name = name
+        self.passwordCollectionState = .none
+        self.results = results
+    }
+
+    init(id: UUID = UUID(), name: String, passwordCollectionState: PasswordProtectedCollectionState, results: [CollectionItem]) {
+        self.id = id
+        self.name = name
+        self.passwordCollectionState = passwordCollectionState
         self.results = results
     }
 }
