@@ -19,6 +19,22 @@ public struct Home: View {
 
     public init() {}
 
+    var filteredResults: [KTTrendingResult] {
+        switch selectedFilter {
+        case .all:
+            tmdbManager.trendingResults
+        case .tv:
+            tmdbManager.trendingResults.filter { result in
+                result.mediaType == .tv
+            }
+        case .movies:
+            tmdbManager.trendingResults.filter { result in
+                result.mediaType == .movie
+            }
+        }
+    }
+
+
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
@@ -26,8 +42,8 @@ public struct Home: View {
                     .font(.title2.bold())
                     .padding(.horizontal)
                     .padding(.top, 8)
-                TrendingView(
-                    filter: selectedFilter,
+                HomeListView(
+                    contents: filteredResults,
                     error: $error,
                     showError: $showError
                 )
@@ -37,8 +53,8 @@ public struct Home: View {
                         .font(.title2.bold())
                         .padding(.horizontal)
                         .padding(.top, 8)
-                    KTMoviesView(
-                        movies: tmdbManager.nowPlayingMovies,
+                    HomeListView(
+                        contents: tmdbManager.nowPlayingMovies,
                         error: $error,
                         showError: $showError
                     )
@@ -49,8 +65,8 @@ public struct Home: View {
                         .font(.title2.bold())
                         .padding(.horizontal)
                         .padding(.top, 8)
-                    KTTVView(
-                        tv: tmdbManager.popularTV,
+                    HomeListView(
+                        contents: tmdbManager.popularTV,
                         error: $error,
                         showError: $showError
                     )
@@ -61,8 +77,8 @@ public struct Home: View {
                         .font(.title2.bold())
                         .padding(.horizontal)
                         .padding(.top, 8)
-                    KTMoviesView(
-                        movies: tmdbManager.popularMovies,
+                    HomeListView(
+                        contents: tmdbManager.popularMovies,
                         error: $error,
                         showError: $showError
                     )
@@ -73,8 +89,8 @@ public struct Home: View {
                         .font(.title2.bold())
                         .padding(.horizontal)
                         .padding(.top, 8)
-                    KTTVView(
-                        tv: tmdbManager.topRatedTV,
+                    HomeListView(
+                        contents: tmdbManager.topRatedTV,
                         error: $error,
                         showError: $showError
                     )
@@ -85,8 +101,8 @@ public struct Home: View {
                         .font(.title2.bold())
                         .padding(.horizontal)
                         .padding(.top, 8)
-                    KTMoviesView(
-                        movies: tmdbManager.topRatedMovies,
+                    HomeListView(
+                        contents: tmdbManager.topRatedMovies,
                         error: $error,
                         showError: $showError
                     )

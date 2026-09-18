@@ -1,14 +1,14 @@
 //
-//  TrendingView.swift
-//  MoviesAPIClient
+//  HomeListView.swift
+//  MoviesAPICore
 //
-//  Created by Aryan Rogye on 9/16/26.
+//  Created by Aryan Rogye on 9/18/26.
 //
 
 import SwiftUI
 import SwiftData
 
-struct TrendingView: View {
+struct HomeListView<Media: MediaListItem>: View {
 
     @Environment(TMDBManager.self) var tmdbManager
     @Environment(PlaybackSession.self) var playbackSession
@@ -16,61 +16,47 @@ struct TrendingView: View {
     @Query var favorites: [Favorite]
     @Query var collections: [Collection]
 
-    let filter: LibraryFilter
+    let contents: [Media]
     @Binding var error: String?
     @Binding var showError: Bool
 
     @State private var isResolving: Bool = false
     @State private var resolveTask: Task<Void, Never>?
-    @State private var resolvingTrending: KTTrendingResult?
+    @State private var resolvingMedia: Media?
     @State private var searchResult: KTSearchResult?
     @State private var goToDetail: Bool = false
 
-    let trendingRows: [GridItem] = [
+    let popularTVRows: [GridItem] = [
         GridItem(.fixed(180), spacing: 12),
         GridItem(.fixed(180), spacing: 12),
     ]
 
     @State private var showCreateCollection: Bool = false
     @State private var collectionName: String = ""
-    @State private var collectionResultToAdd: KTTrendingResult?
+    @State private var collectionResultToAdd: Media?
 
-    var filteredResults: [KTTrendingResult] {
-        switch filter {
-        case .all:
-            tmdbManager.trendingResults
-        case .tv:
-            tmdbManager.trendingResults.filter { result in
-                result.mediaType == .tv
-            }
-        case .movies:
-            tmdbManager.trendingResults.filter { result in
-                result.mediaType == .movie
-            }
-        }
-    }
 
     var body: some View {
         ScrollView(.horizontal) {
-            LazyHGrid(rows: trendingRows, spacing: 12) {
-                if tmdbManager.trendingResults.isEmpty {
+            LazyHGrid(rows: popularTVRows, spacing: 12) {
+                if contents.isEmpty {
                     ProgressView()
                 } else {
-                    ForEach(filteredResults, id: \.id) { trending in
+                    ForEach(contents, id: \.id) { content in
                         HomeRow(
-                            imagePath: trending.backdropPath,
-                            name: trending.name ?? trending.title ?? "",
-                            mediaType: trending.mediaType
+                            imagePath: content.backdropPath,
+                            name: content.displayName,
+                            mediaType: content.mediaType
                         )
                         .contextMenu {
-                            contextMenu(result: trending)
+                            contextMenu(result: content)
                         }
                         .onTapGesture {
                             playbackSession.stop()
-                            resolve(trending)
+                            resolve(content)
                         }
                         .overlay {
-                            if resolvingTrending == trending {
+                            if resolvingMedia?.id == content.id && resolvingMedia?.mediaType == content.mediaType {
                                 ProgressView()
                                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                                     .background(.black.opacity(0.1))
@@ -104,7 +90,7 @@ struct TrendingView: View {
 
                 let item = CollectionItem(
                     resultId: Int(result.id),
-                    name: result.name ?? result.title ?? "",
+                    name: result.displayName,
                     mediaType: result.mediaType.rawValue,
                     posterPath: result.posterPath
                 )
@@ -122,10 +108,11 @@ struct TrendingView: View {
         } message: {
             Text("Enter a name for your new collection.")
         }
+
     }
 
     @ViewBuilder
-    private func contextMenu(result: KTTrendingResult) -> some View {
+    private func contextMenu(result: Media) -> some View {
         let isFavorite = isFavorite(result)
         Button {
             if isFavorite {
@@ -135,7 +122,7 @@ struct TrendingView: View {
             } else {
                 let favorite = Favorite(
                     id: Int(result.id),
-                    name: result.name ?? result.title ?? "",
+                    name: result.displayName,
                     mediaType: result.mediaType.rawValue,
                     posterPath: result.posterPath
                 )
@@ -154,12 +141,12 @@ struct TrendingView: View {
                 Button {
                     if inCollection {
                         collection.results.removeAll(where: {
-                            $0.resultId == result.id && $0.mediaType == KTMediaType.movie.rawValue
+                            $0.resultId == result.id && $0.mediaType == result.mediaType.rawValue
                         })
                     } else {
                         collection.results.append(CollectionItem(
                             resultId: Int(result.id),
-                            name: result.name ?? result.title ?? "",
+                            name: result.displayName,
                             mediaType: result.mediaType.rawValue,
                             posterPath: result.posterPath
                         ))
@@ -184,11 +171,10 @@ struct TrendingView: View {
         } label: {
             Label("Add To Collection", systemImage: "rectangle.stack.badge.plus")
         }
-
     }
 
     func isInCollection(
-        _ result: KTTrendingResult,
+        _ result: Media,
         collection: Collection
     ) -> Bool {
         collection.results.contains {
@@ -197,30 +183,30 @@ struct TrendingView: View {
         }
     }
 
-    func isFavorite(_ result: KTTrendingResult) -> Bool {
+    func isFavorite(_ result: Media) -> Bool {
         for favorite in favorites {
-            if result.id == favorite.id && result.mediaType.rawValue == favorite.mediaType {
+            if result.id == favorite.id && favorite.mediaType == result.mediaType.rawValue {
                 return true
             }
         }
         return false
     }
 
-    private func resolve(_ trending: KTTrendingResult) {
+    private func resolve(_ result: Media) {
         if isResolving { return }
         resolveTask = Task {
 
-            self.resolvingTrending = trending
+            self.resolvingMedia = result
             isResolving = true
             defer {
                 isResolving = false
-                resolvingTrending = nil
+                resolvingMedia = nil
             }
 
             do {
-                try await tmdbManager.search(trending.name ?? trending.title ?? "")
+                try await tmdbManager.search(result.displayName)
                 if !tmdbManager.searchResults.isEmpty {
-                    if let result = tmdbManager.searchResults.first(where: { $0.id == trending.id }) {
+                    if let result = tmdbManager.searchResults.first(where: { $0.id == result.id }) {
                         self.searchResult = result
                         self.goToDetail = true
                     }
@@ -233,4 +219,5 @@ struct TrendingView: View {
             }
         }
     }
+
 }
