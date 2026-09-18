@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		9BE2E9F1305A5D470059DA6C /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = 9BE2E9F0305A5D470059DA6C /* Defaults */; };
 		9BE82336305CA83B003801A2 /* MoviesAPICore in Frameworks */ = {isa = PBXBuildFile; productRef = 9BE82335305CA83B003801A2 /* MoviesAPICore */; };
 /* End PBXBuildFile section */
 
@@ -40,7 +39,6 @@
 		9B6EBD893058AC940058478C /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
-				9BE2E9F1305A5D470059DA6C /* Defaults in Frameworks */,
 				9BE82336305CA83B003801A2 /* MoviesAPICore in Frameworks */,
 			);
 		};
@@ -81,7 +79,6 @@
 			);
 			name = MoviesAPIClient;
 			packageProductDependencies = (
-				9BE2E9F0305A5D470059DA6C /* Defaults */,
 				9BE82335305CA83B003801A2 /* MoviesAPICore */,
 			);
 			productName = MoviesAPIClient;
@@ -113,7 +110,6 @@
 			mainGroup = 9B6EBD833058AC940058478C;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				9BE2E9EF305A5D470059DA6C /* XCRemoteSwiftPackageReference "Defaults" */,
 				9BE82334305CA83B003801A2 /* XCLocalSwiftPackageReference "MoviesAPICore" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -403,23 +399,7 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		9BE2E9EF305A5D470059DA6C /* XCRemoteSwiftPackageReference "Defaults" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/sindresorhus/Defaults.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 9.0.9;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
 /* Begin XCSwiftPackageProductDependency section */
-		9BE2E9F0305A5D470059DA6C /* Defaults */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 9BE2E9EF305A5D470059DA6C /* XCRemoteSwiftPackageReference "Defaults" */;
-			productName = Defaults;
-		};
 		9BE82335305CA83B003801A2 /* MoviesAPICore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = MoviesAPICore;
