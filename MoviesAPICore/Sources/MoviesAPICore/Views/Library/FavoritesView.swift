@@ -108,7 +108,7 @@ struct FavoritesView: View {
 
                 let item = CollectionItem(
                     resultId: Int(result.id),
-                    name: result.name ?? "",
+                    name: result.name,
                     mediaType: result.mediaType,
                     posterPath: result.posterPath
                 )
@@ -233,7 +233,6 @@ struct FavoriteRow: View {
             } label: {
                 Label("Add To Collection", systemImage: "rectangle.stack.badge.plus")
             }
-
         }
     }
 

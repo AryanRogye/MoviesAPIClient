@@ -7,7 +7,6 @@
 
 import SwiftUI
 import SwiftData
-import MoviesAPICore
 
 struct TrendingView: View {
 
@@ -15,6 +14,7 @@ struct TrendingView: View {
     @Environment(PlaybackSession.self) var playbackSession
     @Environment(\.modelContext) var modelContext
     @Query var favorites: [Favorite]
+    @Query var collections: [Collection]
 
     let filter: LibraryFilter
     @Binding var error: String?
@@ -30,6 +30,10 @@ struct TrendingView: View {
         GridItem(.fixed(180), spacing: 12),
         GridItem(.fixed(180), spacing: 12),
     ]
+
+    @State private var showCreateCollection: Bool = false
+    @State private var collectionName: String = ""
+    @State private var collectionResultToAdd: KTTrendingResult?
 
     var filteredResults: [KTTrendingResult] {
         switch filter {
@@ -84,6 +88,40 @@ struct TrendingView: View {
                 WatchDetailView(result: searchResult)
             }
         }
+        .alert("Create Collection", isPresented: $showCreateCollection) {
+            TextField("Collection Name", text: $collectionName)
+
+            Button("Cancel", role: .cancel) {
+                collectionName = ""
+                collectionResultToAdd = nil
+            }
+
+            Button("Create") {
+                guard
+                    !collectionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                    let result = collectionResultToAdd
+                        else { return }
+
+                let item = CollectionItem(
+                    resultId: Int(result.id),
+                    name: result.name ?? result.title ?? "",
+                    mediaType: result.mediaType.rawValue,
+                    posterPath: result.posterPath
+                )
+
+                let collection = Collection(
+                    name: collectionName.trimmingCharacters(in: .whitespacesAndNewlines),
+                    results: [item]
+                )
+
+                modelContext.insert(collection)
+
+                collectionName = ""
+                collectionResultToAdd = nil
+            }
+        } message: {
+            Text("Enter a name for your new collection.")
+        }
     }
 
     @ViewBuilder
@@ -108,6 +146,54 @@ struct TrendingView: View {
                 isFavorite ? "Unfavorite" : "Favorite",
                 systemImage: isFavorite ? "star.slash.fill" : "star.fill"
             )
+        }
+
+        Menu {
+            ForEach(collections) { collection in
+                let inCollection = isInCollection(result, collection: collection)
+                Button {
+                    if inCollection {
+                        collection.results.removeAll(where: {
+                            $0.resultId == result.id && $0.mediaType == KTMediaType.movie.rawValue
+                        })
+                    } else {
+                        collection.results.append(CollectionItem(
+                            resultId: Int(result.id),
+                            name: result.name ?? result.title ?? "",
+                            mediaType: result.mediaType.rawValue,
+                            posterPath: result.posterPath
+                        ))
+                    }
+                } label: {
+                    Label(
+                        collection.name,
+                        systemImage: inCollection ? "checkmark" : "rectangle.stack"
+                    )
+                }
+            }
+            Button {
+                showCreateCollection = true
+                collectionName = ""
+                collectionResultToAdd = result
+            } label: {
+                Label(
+                    "New Collection",
+                    systemImage: "plus"
+                )
+            }
+        } label: {
+            Label("Add To Collection", systemImage: "rectangle.stack.badge.plus")
+        }
+
+    }
+
+    func isInCollection(
+        _ result: KTTrendingResult,
+        collection: Collection
+    ) -> Bool {
+        collection.results.contains {
+            $0.resultId == result.id &&
+            $0.mediaType == result.mediaType.rawValue
         }
     }
 
