@@ -7,7 +7,6 @@
 
 import SwiftUI
 import SwiftData
-import MoviesAPICore
 
 struct SearchResultsView: View {
 
@@ -105,11 +104,7 @@ struct SearchResultsView: View {
         Menu {
             ForEach(collections) { collection in
                 let inCollection = isInCollection(result, collection: collection)
-                Label(
-                    collection.name,
-                    systemImage: inCollection ? "checkmark" : "rectangle.stack"
-                )
-                .onTapGesture {
+                Button {
                     if inCollection {
                         collection.results.removeAll(where: {
                             $0.resultId == result.id && $0.mediaType == result.mediaType.rawValue
@@ -122,6 +117,11 @@ struct SearchResultsView: View {
                             posterPath: result.posterPath
                         ))
                     }
+                } label: {
+                    Label(
+                        collection.name,
+                        systemImage: inCollection ? "checkmark" : "rectangle.stack"
+                    )
                 }
             }
             Button {
@@ -159,3 +159,60 @@ struct SearchResultsView: View {
         return false
     }
 }
+
+#if DEBUG
+#Preview {
+    @Previewable @State var tmdbManager: TMDBManager?
+
+    if let tmdbManager {
+        NavigationStack {
+            SearchResultsView(searchResults: [
+                KTSearchResult(
+                    id: 969681,
+                    mediaType: .movie,
+                    title: "Spider-Man: Brand New Day",
+                    name: nil,
+                    posterPath: "/bjiS5ipwxb9JFy3XRRN4OAilSeX.jpg",
+                    overview: """
+                    Fighting crime full-time as Spider-Man in a world that doesn't remember him—and the pressure of seeing his old friends move on without him—sparks a change in Peter Parker he may not have the power to control.
+                    """,
+                    releaseDate: "2026-07-31",
+                    firstAirDate: nil
+                ),
+                KTSearchResult(
+                    id: 38867,
+                    mediaType: .tv,
+                    title: nil,
+                    name: "Lab Rats",
+                    posterPath: "/lcQMvn9ZptPd3dxn0a17viRfi7Y.jpg",
+                    overview: """
+                    Leo discovers three superhuman teenagers living in a secret underground lab beneath his new home.
+                    """,
+                    releaseDate: nil,
+                    firstAirDate: "2012-02-27"
+                )
+            ])
+            .environment(tmdbManager)
+            .environment(PlaybackSession())
+            .environment(BlockingService())
+            .modelContainer(
+                for: [Favorite.self, History.self, Collection.self],
+                inMemory: true
+            )
+        }
+    } else {
+        ProgressView()
+            .task {
+                do {
+                    tmdbManager = try .init(
+                        tmdbClient: TMDBClientPreview(),
+                        token: "preview"
+                    )
+                } catch {
+                    print(error.localizedDescription)
+                }
+            }
+    }
+
+}
+#endif

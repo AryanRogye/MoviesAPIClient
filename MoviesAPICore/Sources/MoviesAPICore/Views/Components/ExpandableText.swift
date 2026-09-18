@@ -11,7 +11,11 @@ struct ExpandableText: View {
     let text: String
     var collapsedLines: Int = 3
     let tintColor: Color
+    #if os(iOS)
     let font: UIFont
+    #elseif os(macOS)
+    let font: NSFont
+    #endif
     var background: Color
 
     @State private var isTruncated = false

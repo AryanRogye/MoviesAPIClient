@@ -4,13 +4,14 @@
 //
 
 import SwiftUI
-import MoviesAPICore
 
-struct SearchTab: View {
+public struct SearchTab: View {
 
     @Environment(TMDBManager.self) private var tmdbManager
 
-    var body: some View {
+    public init() {}
+
+    public var body: some View {
         ScrollView {
             if tmdbManager.searchResults.isEmpty {
                 ContentUnavailableView.search

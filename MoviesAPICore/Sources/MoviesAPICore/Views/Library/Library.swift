@@ -7,9 +7,8 @@
 
 import SwiftUI
 import SwiftData
-import MoviesAPICore
 
-enum LibraryFilter: String, CaseIterable {
+public enum LibraryFilter: String, CaseIterable {
     case all = "All"
     case tv = "TV"
     case movies = "Movies"
@@ -26,24 +25,32 @@ enum LibraryFilter: String, CaseIterable {
     }
 }
 
-struct Library: View {
+public struct Library: View {
 
     @Environment(\.modelContext) var modelContext
     @Query var favorites: [Favorite]
 
     @State private var selectedFilter: LibraryFilter = .all
 
-    var body: some View {
+    public init() {}
+
+    public var body: some View {
         ScrollView {
             if favorites.isEmpty {
                 emptyView
             } else {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 18) {
                     Text("Favorites")
                         .font(.title2.bold())
                         .padding(.horizontal)
+                        .padding(.top, 8)
 
                     FavoritesView(filter: selectedFilter)
+
+                    Text("Collection")
+                        .font(.title2.bold())
+                        .padding(.horizontal)
+                    LibraryCollectionView()
                 }
                 .padding(.bottom)
             }

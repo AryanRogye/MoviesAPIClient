@@ -7,15 +7,19 @@
 
 import SwiftUI
 import SwiftData
-import MoviesAPICore
 
 struct FavoritesView: View {
 
+    @Environment(\.modelContext) var modelContext
     @Environment(TMDBManager.self) var tmdbManager
     @Environment(PlaybackSession.self) var playbackSession
     @Query var favorites: [Favorite]
 
     let filter: LibraryFilter
+
+    @State private var showCreateCollection: Bool = false
+    @State private var collectionName: String = ""
+    @State private var collectionResultToAdd: Favorite?
 
     var filteredFavorites: [Favorite] {
         switch filter {
@@ -51,18 +55,23 @@ struct FavoritesView: View {
         ScrollView(.horizontal) {
             LazyHGrid(rows: rows,spacing: 12) {
                 ForEach(filteredFavorites, id: \.id) { favorite in
-                    FavoriteRow(favorite: favorite)
-                        .onTapGesture {
-                            playbackSession.stop()
-                            resolve(favorite)
+                    FavoriteRow(
+                        favorite: favorite,
+                        showCreateCollection: $showCreateCollection,
+                        collectionName: $collectionName,
+                        collectionResultToAdd: $collectionResultToAdd
+                    )
+                    .onTapGesture {
+                        playbackSession.stop()
+                        resolve(favorite)
+                    }
+                    .overlay {
+                        if resolvingFavorite == favorite {
+                            ProgressView()
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .background(.black.opacity(0.1))
                         }
-                        .overlay {
-                            if resolvingFavorite == favorite {
-                                ProgressView()
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                    .background(.black.opacity(0.1))
-                            }
-                        }
+                    }
                 }
             }
             .padding(.bottom, 8)
@@ -82,6 +91,40 @@ struct FavoritesView: View {
         .onDisappear {
             resolveTask?.cancel()
             resolveTask = nil
+        }
+        .alert("Create Collection", isPresented: $showCreateCollection) {
+            TextField("Collection Name", text: $collectionName)
+
+            Button("Cancel", role: .cancel) {
+                collectionName = ""
+                collectionResultToAdd = nil
+            }
+
+            Button("Create") {
+                guard
+                    !collectionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                    let result = collectionResultToAdd
+                        else { return }
+
+                let item = CollectionItem(
+                    resultId: Int(result.id),
+                    name: result.name ?? "",
+                    mediaType: result.mediaType,
+                    posterPath: result.posterPath
+                )
+
+                let collection = Collection(
+                    name: collectionName.trimmingCharacters(in: .whitespacesAndNewlines),
+                    results: [item]
+                )
+
+                modelContext.insert(collection)
+
+                collectionName = ""
+                collectionResultToAdd = nil
+            }
+        } message: {
+            Text("Enter a name for your new collection.")
         }
     }
 
@@ -118,6 +161,11 @@ struct FavoriteRow: View {
 
     @Environment(\.modelContext) var modelContext
     let favorite: Favorite
+    @Query var collections: [Collection]
+
+    @Binding var showCreateCollection: Bool
+    @Binding var collectionName: String
+    @Binding var collectionResultToAdd: Favorite?
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -149,6 +197,53 @@ struct FavoriteRow: View {
             } label: {
                 Label("Unfavorite", systemImage: "star.slash.fill")
             }
+            Menu {
+                ForEach(collections) { collection in
+                    let inCollection = isInCollection(favorite, collection: collection)
+                    Button {
+                        if inCollection {
+                            collection.results.removeAll(where: {
+                                $0.resultId == favorite.id && $0.mediaType == favorite.mediaType
+                            })
+                        } else {
+                            collection.results.append(CollectionItem(
+                                resultId: Int(favorite.id),
+                                name: favorite.name ?? "",
+                                mediaType: favorite.mediaType,
+                                posterPath: favorite.posterPath
+                            ))
+                        }
+                    } label: {
+                        Label(
+                            collection.name,
+                            systemImage: inCollection ? "checkmark" : "rectangle.stack"
+                        )
+                    }
+                }
+                Button {
+                    showCreateCollection = true
+                    collectionName = ""
+                    collectionResultToAdd = favorite
+                } label: {
+                    Label(
+                        "New Collection",
+                        systemImage: "plus"
+                    )
+                }
+            } label: {
+                Label("Add To Collection", systemImage: "rectangle.stack.badge.plus")
+            }
+
+        }
+    }
+
+    func isInCollection(
+        _ result: Favorite,
+        collection: Collection
+    ) -> Bool {
+        collection.results.contains {
+            $0.resultId == result.id &&
+            $0.mediaType == result.mediaType
         }
     }
 }

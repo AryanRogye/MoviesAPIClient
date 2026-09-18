@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import MoviesAPICore
 
 struct SearchResultsRow: View {
     let result: KTSearchResult

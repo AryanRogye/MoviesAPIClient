@@ -6,14 +6,15 @@
 //
 
 import SwiftUI
-import MoviesAPICore
 
-struct SettingsView: View {
+public struct SettingsView: View {
 
     @Environment(TMDBManager.self) var tmdbManager
     @Environment(BlockingService.self) var blockingService
 
-    var body: some View {
+    public init() {}
+
+    public var body: some View {
 
         @Bindable var tmdbManager = tmdbManager
 

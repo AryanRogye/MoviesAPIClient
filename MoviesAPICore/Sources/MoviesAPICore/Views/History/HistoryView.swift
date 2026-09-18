@@ -6,10 +6,9 @@
 //
 
 import SwiftUI
-import MoviesAPICore
 import SwiftData
 
-struct HistoryView: View {
+public struct HistoryView: View {
 
     @Environment(TMDBManager.self) var tmdbManager
     @Environment(BlockingService.self) var blockingService
@@ -30,6 +29,8 @@ struct HistoryView: View {
     @State private var error: String?
     @State private var showError: Bool = false
 
+    public init() {}
+
     @AppStorage("DisplayServer") private var displayServerRawValue = KTDisplayServer.moviesApi.rawValue
 
     private var displayServer: KTDisplayServer {
@@ -43,7 +44,7 @@ struct HistoryView: View {
         )
     }
 
-    var body: some View {
+    public var body: some View {
         Group {
             if history.isEmpty {
                 emptyView

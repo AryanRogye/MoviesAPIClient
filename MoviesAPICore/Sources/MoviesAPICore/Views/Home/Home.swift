@@ -6,10 +6,9 @@
 //
 
 import SwiftUI
-import MoviesAPICore
 import SwiftData
 
-struct Home: View {
+public struct Home: View {
 
     @Environment(TMDBManager.self) var tmdbManager
 
@@ -18,7 +17,9 @@ struct Home: View {
 
     @State private var selectedFilter: LibraryFilter = .all
 
-    var body: some View {
+    public init() {}
+
+    public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Trending")

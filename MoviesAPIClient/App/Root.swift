@@ -85,6 +85,7 @@ struct Root: View {
                 .onChange(of: playbackSession.activationID) {
                     playbackSession.sourceTab = selectedTab
                 }
+                #if os(iOS)
                 .tabViewBottomAccessory(isEnabled: playbackSession.isActive) {
                     HStack(spacing: 10) {
                         Button(action: playbackSession.stop) {
@@ -127,6 +128,7 @@ struct Root: View {
                     .padding(4)
                     .padding(.horizontal, 8)
                 }
+                #endif
                 .environment(tmdbManager)
                 .environment(blockingService)
                 .environment(playbackSession)

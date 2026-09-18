@@ -469,13 +469,14 @@ private struct EpisodesView: View {
                     name: "Lab Rats",
                     posterPath: "/lcQMvn9ZptPd3dxn0a17viRfi7Y.jpg",
                     overview: """
-            Leo is an ordinary teenager who has moved into a high-tech "smart" house with his mother, inventor stepfather and Eddy, the computer that runs the house. Leo's life becomes less ordinary when, one day, he discovers a secret underground lab that houses three experiments: superhuman teenagers. The trio -- Adam, the strong one, Bree, the fast one and Chase, the smart one -- convinces Leo and his parents to let them leave their lab and join Leo at school, where they try to fit in while having to manage their unpredictable bionic strengths. As Leo figures out a way to keep his new pals' bionic abilities a secret, they help him build self-confidence.
-            """,
+                    Leo is an ordinary teenager who has moved into a high-tech "smart" house with his mother, inventor stepfather and Eddy, the computer that runs the house. Leo's life becomes less ordinary when, one day, he discovers a secret underground lab that houses three experiments: superhuman teenagers. The trio -- Adam, the strong one, Bree, the fast one and Chase, the smart one -- convinces Leo and his parents to let them leave their lab and join Leo at school, where they try to fit in while having to manage their unpredictable bionic strengths. As Leo figures out a way to keep his new pals' bionic abilities a secret, they help him build self-confidence.
+                    """,
                     releaseDate: nil,
                     firstAirDate: nil
                 )
             )
             .environment(tmdbManager)
+            .environment(PlaybackSession())
             .environment(BlockingService())
             .modelContainer(for: [Favorite.self, History.self], inMemory: true)
         }
