@@ -208,7 +208,7 @@ struct FavoriteRow: View {
                         } else {
                             collection.results.append(CollectionItem(
                                 resultId: Int(favorite.id),
-                                name: favorite.name ?? "",
+                                name: favorite.name,
                                 mediaType: favorite.mediaType,
                                 posterPath: favorite.posterPath
                             ))

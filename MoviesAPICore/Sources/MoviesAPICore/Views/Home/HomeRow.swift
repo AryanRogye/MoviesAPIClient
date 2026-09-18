@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import MoviesAPICore
 
 struct HomeRow: View {
 
