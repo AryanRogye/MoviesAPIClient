@@ -7,7 +7,6 @@
 
 import SwiftUI
 import WebKit
-import MoviesAPICore
 
 public struct Root: View {
 
