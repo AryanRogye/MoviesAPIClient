@@ -25,7 +25,7 @@ struct HomeRow: View {
                 .lineLimit(1)
                 .frame(width: 110, alignment: .leading)
         }
-        .frame(width: 110, height: 165)
+        .frame(width: 110)
         .overlay(alignment: .topTrailing) {
             Text(mediaType.rawValue)
                 .font(.caption2.bold())

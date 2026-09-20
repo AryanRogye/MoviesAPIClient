@@ -34,7 +34,11 @@ struct LibraryCollectionView: View {
         ScrollView(.horizontal) {
             LazyHGrid(rows: rows,spacing: 12) {
                 ForEach(collection, id: \.id) { collection in
-                    Text(collection.name)
+                    VStack(alignment: .leading) {
+                        CollectionArtworkView(paths: collection.fourImagePaths)
+                        Text(collection.name)
+                    }
+                    .frame(width: 110, height: 165)
                 }
             }
             .padding(.bottom, 8)
@@ -56,4 +60,139 @@ struct LibraryCollectionView: View {
             resolveTask = nil
         }
     }
+}
+
+
+private struct CollectionArtworkView: View {
+
+    let paths: [String]
+
+    let columns = [
+        GridItem(.flexible(), spacing: 0),
+        GridItem(.flexible(), spacing: 0)
+    ]
+
+    var body: some View {
+        Group {
+            switch paths.count {
+            case 0:
+                EmptyView()
+
+            case 1:
+                oneImage
+
+            case 2:
+                twoImages
+
+            case 3:
+                threeImages
+
+            default:
+                fourImages
+            }
+        }
+        .clipShape(.rect(cornerRadius: 12))
+    }
+
+    private var oneImage: some View {
+        GeometryReader { geo in
+            CollectionImageView(imagePath: paths[0])
+                .frame(
+                    width: geo.size.width,
+                    height: geo.size.height
+                )
+                .clipped()
+        }
+    }
+
+    private var twoImages: some View {
+        GeometryReader { geo in
+            VStack(spacing: 0) {
+                CollectionImageView(imagePath: paths[0])
+                    .frame(
+                        width: geo.size.width,
+                        height: geo.size.height / 2
+                    )
+                    .clipped()
+                CollectionImageView(imagePath: paths[1])
+                    .frame(
+                        width: geo.size.width,
+                        height: geo.size.height / 2
+                    )
+                    .clipped()
+            }
+        }
+    }
+
+    private var threeImages: some View {
+        GeometryReader { geo in
+            HStack(spacing: 0) {
+                CollectionImageView(imagePath: paths[0])
+                    .frame(
+                        width: geo.size.width / 2,
+                        height: geo.size.height
+                    )
+
+                VStack(spacing: 0) {
+                    CollectionImageView(imagePath: paths[1])
+                        .frame(
+                            width: geo.size.width / 2,
+                            height: geo.size.height / 2
+                        )
+
+                    CollectionImageView(imagePath: paths[2])
+                        .frame(
+                            width: geo.size.width / 2,
+                            height: geo.size.height / 2
+                        )
+                }
+            }
+        }
+
+    }
+
+    private var fourImages: some View {
+        LazyVGrid(columns: columns, spacing: 0) {
+            ForEach(paths.prefix(4).indices, id: \.self) { index in
+                CollectionImageView(imagePath: paths[index])
+                    .aspectRatio(2 / 3, contentMode: .fill)
+            }
+        }
+        .clipShape(.rect(cornerRadius: 12))
+    }
+
+    private struct CollectionImageView: View {
+
+        let imagePath: String?
+
+        var body: some View {
+            Group {
+                if let imagePath,
+                   let url = URL(
+                    string: "https://image.tmdb.org/t/p/w500\(imagePath)"
+                   ) {
+                    AsyncImage(url: url) { image in
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    } placeholder: {
+                        Rectangle()
+                            .fill(.quaternary)
+                            .overlay {
+                                ProgressView()
+                            }
+                    }
+                } else {
+                    Rectangle()
+                        .fill(.quaternary)
+                        .overlay {
+                            Image(systemName: "photo")
+                                .foregroundStyle(.secondary)
+                        }
+                }
+            }
+            .clipped()
+        }
+    }
+
 }

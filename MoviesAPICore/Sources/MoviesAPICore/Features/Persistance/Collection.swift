@@ -23,6 +23,14 @@ public final class Collection {
     @Relationship(deleteRule: .cascade, inverse: \CollectionItem.collection)
     public var results: [CollectionItem]
 
+    var fourImagePaths: [String] {
+        Array(
+            results
+                .compactMap(\.posterPath)
+                .prefix(4)
+        )
+    }
+
     public init(id: UUID = UUID(), name: String, results: [CollectionItem]) {
         self.id = id
         self.name = name

@@ -180,7 +180,7 @@ struct FavoriteRow: View {
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(width: 110, height: 165)
+        .frame(width: 110)
         .overlay(alignment: .topTrailing) {
             Text(favorite.mediaType == "tv" ? "TV" : "Movie")
                 .font(.caption2.weight(.bold))
