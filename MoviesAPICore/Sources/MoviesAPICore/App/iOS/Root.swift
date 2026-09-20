@@ -29,8 +29,6 @@ public struct Root: View {
     @State private var error: String?
     @State private var showError: Bool = false
 
-    @Environment(\.tabViewBottomAccessoryPlacement) var placement
-
     public init() {}
 
     public var body: some View {

@@ -35,6 +35,17 @@ public struct SettingsView: View {
             } header: {
                 Label("Network", systemImage: "network")
             }
+
+            Section {
+                Link(destination: URL(string: "https://www.themoviedb.org")!) {
+                    Label("The Movie Database (TMDB)", systemImage: "film")
+                }
+
+                Text("This product uses the TMDB API but is not endorsed or certified by TMDB.")
+                    .foregroundStyle(.secondary)
+            } header: {
+                Label("Attribution", systemImage: "info.circle")
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .toolbar {

@@ -38,6 +38,8 @@ Playback availability depends on the selected third-party server.
 
 The Android/Fire TV UI was written by Codex. The business logic and Swift implementation are written by Aryan Rogye.
 
+This product uses the [TMDB API](https://www.themoviedb.org/) but is not endorsed or certified by TMDB.
+
 ## Project layout
 
 | Path | Purpose |

@@ -379,6 +379,11 @@ private fun SettingsScreen(appState: MoviesAppState, blockingService: AndroidBlo
             color = Color.White.copy(alpha = .62f),
             modifier = Modifier.padding(top = 32.dp),
         )
+        Text(
+            "This product uses the TMDB API but is not endorsed or certified by TMDB.",
+            color = Color.White.copy(alpha = .62f),
+            modifier = Modifier.padding(top = 32.dp),
+        )
         if (!appState.isConfigured) {
             Text(
                 "TMDB_API_READ_ACCESS_TOKEN is not configured. Set it as a Gradle property or environment variable and rebuild.",
