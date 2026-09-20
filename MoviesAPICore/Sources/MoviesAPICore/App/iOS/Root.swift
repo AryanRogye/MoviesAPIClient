@@ -9,7 +9,7 @@ import SwiftUI
 import WebKit
 import MoviesAPICore
 
-struct Root: View {
+public struct Root: View {
 
     private enum PlaybackRoute: Hashable {
         case player(UUID)
@@ -32,7 +32,9 @@ struct Root: View {
 
     @Environment(\.tabViewBottomAccessoryPlacement) var placement
 
-    var body: some View {
+    public init() {}
+
+    public var body: some View {
         VStack {
             if let tmdbManager {
                 TabView(selection: $selectedTab) {

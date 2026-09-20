@@ -119,6 +119,11 @@ public struct HistoryView: View {
             }
         }
         .navigationTitle("History")
+        .toolbar {
+#if os(macOS)
+            ToolbarSpacer(.flexible)
+#endif
+        }
     }
 
     private var emptyView: some View {

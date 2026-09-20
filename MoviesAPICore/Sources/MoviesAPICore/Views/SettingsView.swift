@@ -36,5 +36,11 @@ public struct SettingsView: View {
                 Label("Network", systemImage: "network")
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .toolbar {
+#if os(macOS)
+            ToolbarSpacer(.flexible)
+#endif
+        }
     }
 }

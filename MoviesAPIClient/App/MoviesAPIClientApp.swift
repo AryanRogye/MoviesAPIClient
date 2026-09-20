@@ -11,6 +11,7 @@ import MoviesAPICore
 
 @main
 struct MoviesAPIClientApp: App {
+    #if os(iOS)
     private let modelContainer: ModelContainer = {
         do {
             let schema = Schema(versionedSchema: MoviesSchemaV2.self)
@@ -19,17 +20,21 @@ struct MoviesAPIClientApp: App {
             fatalError("Could not create model container: \(error)")
         }
     }()
+    #endif
+
+    #if os(macOS)
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    #endif
 
     var body: some Scene {
+#if os(iOS)
         WindowGroup {
             Root()
                 .preferredColorScheme(.dark)
         }
         .modelContainer(modelContainer)
-#if os(macOS)
-        .windowToolbarStyle(
-            .expanded
-        )
+#elseif os(macOS)
+        WindowGroup { EmptyView().destroyViewWindow() }
 #endif
     }
 }

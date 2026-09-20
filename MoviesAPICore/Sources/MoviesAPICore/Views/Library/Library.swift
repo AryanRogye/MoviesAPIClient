@@ -60,9 +60,13 @@ public struct Library: View {
             
         }
         .toolbar {
+#if os(macOS)
+            ToolbarSpacer(.flexible)
+#endif
+
             ToolbarItem(placement: .primaryAction) {
                 Menu {
-                    Picker("", selection: $selectedFilter) {
+                    Picker("Filter", selection: $selectedFilter) {
                         ForEach(LibraryFilter.allCases, id: \.self) { filter in
                             Text(filter.rawValue).tag(filter)
                         }

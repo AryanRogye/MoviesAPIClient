@@ -57,27 +57,54 @@ public struct TVDetailView: View {
 
     @State private var hideSeasonsAndEpisodes: Bool = false
 
+    @AppStorage("EnableAutoPlay") private var enableAutoPlay: Bool = false
+    @State private var timeInfo: TimeInfo? = nil
+    @State private var timeInfoTask: Task<Void, Never>?
+    @State private var waitingForAutoPlayLoad = false
+
+    @State private var iFrameLogs: [String] = []
+
     public var body: some View {
         GeometryReader { geometry in
             ScrollView {
                 if let tvUrl {
 #if os(iOS)
-                    EmbeddedMovieView(url: tvUrl)
-                        .id(reloadID)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 200)
-                        .padding(.horizontal, 10)
+                    EmbeddedMovieView(url: tvUrl) { timeInfo in
+                        self.timeInfo = timeInfo
+
+                        if waitingForAutoPlayLoad,
+                           timeInfo.currentTime < 10,
+                           timeInfo.duration > 0 {
+                            waitingForAutoPlayLoad = false
+                        }
+                    } iFrameLogs: { log in
+                        addLog(log)
+                    }
+                    .id(reloadID)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 200)
+                    .padding(.horizontal, 10)
 #elseif os(macOS)
-                    EmbeddedMovieView(url: tvUrl)
-                        .id(reloadID)
-                        .frame(maxWidth: .infinity)
-                        .frame(
-                            height: hideSeasonsAndEpisodes
-                            ? geometry.size.height
-                            : 400
-                        )
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, hideSeasonsAndEpisodes ? 10 : 0)
+                    EmbeddedMovieView(url: tvUrl) { timeInfo in
+                        self.timeInfo = timeInfo
+
+                        if waitingForAutoPlayLoad,
+                           timeInfo.currentTime < 10,
+                           timeInfo.duration > 0 {
+                            waitingForAutoPlayLoad = false
+                        }
+                    } iFrameLogs: { log in
+                        addLog(log)
+                    }
+                    .id(reloadID)
+                    .frame(maxWidth: .infinity)
+                    .frame(
+                        height: hideSeasonsAndEpisodes
+                        ? geometry.size.height
+                        : 400
+                    )
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, hideSeasonsAndEpisodes ? 10 : 0)
 #endif
                 } else {
                     EpisodeImageView(
@@ -114,33 +141,6 @@ public struct TVDetailView: View {
                 message: Text("\(error, default: "Unknown Error")")
             )
         }
-        .onChange(of: selectedEpisode) { _, newValue in
-            if let newValue, let selectedSeasonNumber {
-                self.tvUrl = nil
-                reloadID = UUID()
-                loadTVShow(season: selectedSeasonNumber, episode: Int(newValue.episodeNumber))
-            }
-        }
-        .onChange(of: selectedSeasonNumber) { _, newValue in
-            if let newValue {
-                seasonInfo = nil
-                selectedEpisode = nil
-                selectedEpisodeNumber = nil
-                loadSeason(season: newValue)
-            }
-        }
-        .onChange(of: displayServer) {
-            if let selectedSeasonNumber, let selectedEpisode {
-                self.tvUrl = nil
-                reloadID = UUID()
-                loadTVShow(season: selectedSeasonNumber, episode: Int(selectedEpisode.episodeNumber))
-            }
-        }
-        .task {
-            if let selectedSeasonNumber, let selectedEpisodeNumber {
-                loadSeason(season: selectedSeasonNumber, pickingEpisode: selectedEpisodeNumber)
-            }
-        }
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button {
@@ -152,16 +152,37 @@ public struct TVDetailView: View {
                     Image(systemName: "chevron.backward")
                 }
             }
-            ToolbarItemGroup(placement: .primaryAction) {
+
 #if os(macOS)
-                Button {
-                    withAnimation(.spring) {
-                        hideSeasonsAndEpisodes.toggle()
-                    }
-                } label: {
-                    Image(systemName: hideSeasonsAndEpisodes ? "eye.slash" : "eye")
-                }
+            ToolbarSpacer(.flexible)
 #endif
+
+            ToolbarItemGroup(placement: .primaryAction) {
+                Menu {
+#if os(macOS)
+                    Button {
+                        hideSeasonsAndEpisodes.toggle()
+                    } label: {
+                        Label(
+                            "Player Only",
+                            systemImage: hideSeasonsAndEpisodes ? "eye.slash" : "eye"
+                        )
+                        .labelStyle(.titleAndIcon)
+                    }
+#endif
+                    NavigationLink {
+                        IFrameLogsView(logs: $iFrameLogs)
+                    } label: {
+                        Text("Logs")
+                    }
+                    .buttonStyle(.plain)
+
+                    Toggle("Enable Autoplay", isOn: $enableAutoPlay)
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
+                .menuIndicator(.hidden)
+                .environment(\.menuOrder, .fixed)
 
                 Picker("Server", selection: $displayServer) {
                     ForEach(KTDisplayServer.entries, id: \.self) { server in
@@ -181,12 +202,112 @@ public struct TVDetailView: View {
                 }
             }
         }
+        .onDisappear {
+            timeInfoTask?.cancel()
+            timeInfoTask = nil
+        }
+        /// If we pick a season number, we must clear out any existing values
+        .onChange(of: selectedSeasonNumber) { _, newValue in
+            if let newValue {
+                seasonInfo = nil
+                tvUrl = nil
+                selectedEpisode = nil
+                selectedEpisodeNumber = nil
+                loadSeason(season: newValue)
+            }
+        }
+        /// If we pick a episode number, we clear out any web values so the view is clear
+        .onChange(of: selectedEpisode) { _, newValue in
+            if let newValue, let selectedSeasonNumber {
+                tvUrl = nil
+                reloadID = UUID()
+                loadTVShow(season: selectedSeasonNumber, episode: Int(newValue.episodeNumber))
+            }
+        }
+        /// If we change a server, we must reload
+        .onChange(of: displayServer) {
+            if let selectedSeasonNumber, let selectedEpisode {
+                self.tvUrl = nil
+                reloadID = UUID()
+                loadTVShow(season: selectedSeasonNumber, episode: Int(selectedEpisode.episodeNumber))
+            }
+        }
+        .onChange(of: enableAutoPlay) { _, newValue in
+            if enableAutoPlay {
+                beginAutoPlay()
+            } else {
+                timeInfoTask?.cancel()
+                timeInfoTask = nil
+            }
+        }
+        .task {
+            if let selectedSeasonNumber, let selectedEpisodeNumber {
+                loadSeason(season: selectedSeasonNumber, pickingEpisode: selectedEpisodeNumber)
+            }
+        }
+        .task {
+            if enableAutoPlay {
+                beginAutoPlay()
+            }
+        }
         .task {
             do {
                 tvShow = try await tmdbManager.infoOnTV(for: Int(result.id))
             } catch {
                 self.error = error.localizedDescription
                 self.showError = true
+            }
+        }
+    }
+
+    func addLog(_ log: String) {
+        iFrameLogs.append(log)
+
+        if iFrameLogs.count > 200 {
+            iFrameLogs.removeFirst(iFrameLogs.count - 200)
+        }
+    }
+
+    private func beginAutoPlay() {
+        guard timeInfoTask == nil else { return }
+        timeInfoTask = Task.detached(priority: .background) {
+            while !Task.isCancelled {
+
+                guard !(await waitingForAutoPlayLoad) else {
+                    try? await Task.sleep(for: .seconds(1))
+                    continue
+                }
+
+                try? await Task.sleep(for: .seconds(5))
+                guard !Task.isCancelled else { return }
+
+                guard let timeInfo = await timeInfo else { continue }
+                guard let seasonInfo = await seasonInfo else { continue }
+                guard let selectedEpisode = await selectedEpisode else { continue }
+
+                let remaining = timeInfo.duration - timeInfo.currentTime
+
+                guard remaining > 0, remaining < 25 else {
+                    continue
+                }
+
+                guard let index = seasonInfo.episodes.firstIndex(
+                    where: { $0.episodeNumber == selectedEpisode.episodeNumber }
+                ) else {
+                    continue
+                }
+
+                let nextIndex = index + 1
+
+                guard seasonInfo.episodes.indices.contains(nextIndex) else {
+                    continue
+                }
+
+                Task { @MainActor in
+                    self.waitingForAutoPlayLoad = true
+                    self.timeInfo = nil
+                    self.selectedEpisode = seasonInfo.episodes[nextIndex]
+                }
             }
         }
     }
@@ -257,6 +378,62 @@ public struct TVDetailView: View {
             } catch {
                 self.error = error.localizedDescription
                 self.showError = true
+            }
+        }
+    }
+}
+
+private struct IFrameLogsView: View {
+    @Binding var logs: [String]
+
+    @Environment(\.dismiss) var dismiss
+
+    var body: some View {
+        List {
+            if logs.isEmpty {
+                Text("No Logs Yet")
+            } else {
+                ForEach(
+                    Array(logs.reversed()).enumerated(),
+                    id: \.offset
+                ) { index, log in
+                    HStack(alignment: .top, spacing: 10) {
+                        Text("#\(logs.count - index)")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .frame(minWidth: 35, alignment: .trailing)
+
+                        Text(log)
+                            .font(.callout.monospaced())
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(.vertical, 3)
+                }
+            }
+        }
+        .navigationTitle("IFrame Logs")
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "chevron.backward")
+                }
+            }
+
+#if os(macOS)
+            ToolbarSpacer(.flexible)
+#endif
+
+            ToolbarItem(placement: .primaryAction) {
+                Button(role: .destructive) {
+                    logs.removeAll()
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .disabled(logs.isEmpty)
+                .help("Clear Logs")
             }
         }
     }

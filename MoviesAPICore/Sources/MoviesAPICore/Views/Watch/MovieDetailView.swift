@@ -162,6 +162,11 @@ public struct MovieDetailView: View {
                     Image(systemName: "chevron.backward")
                 }
             }
+
+#if os(macOS)
+            ToolbarSpacer(.flexible)
+#endif
+
             ToolbarItemGroup(placement: .primaryAction) {
                 Picker("Server", selection: $displayServer) {
                     ForEach(KTDisplayServer.entries, id: \.self) { server in

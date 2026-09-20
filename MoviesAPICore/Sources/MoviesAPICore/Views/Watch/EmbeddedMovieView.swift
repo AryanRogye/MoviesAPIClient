@@ -29,23 +29,28 @@ final class EmbeddedMovieViewModel {
     }
 }
 
-public struct EmbeddedMovieView: View {
+struct TimeInfo: Decodable {
+    var currentTime: Double
+    var duration: Double
+}
+
+struct EmbeddedMovieView: View {
 
     @Environment(PlaybackSession.self) var playbackSession
     @Environment(BlockingService.self) var blockingService
     @State var vm: EmbeddedMovieViewModel = .init()
     let url: URL
+    var onTimeInfo: (TimeInfo) -> Void = { _ in }
+    var iFrameLogs: (String) -> Void = { _ in }
 
-    public init(url: URL) {
-        self.url = url
-    }
-
-    public var body: some View {
+    var body: some View {
         WebView(
             vm: vm,
             playbackSession: playbackSession,
             blockingService: blockingService,
-            url: url
+            url: url,
+            onTimeInfo: onTimeInfo,
+            iFrameLogs: iFrameLogs
         )
         .overlay(alignment: .topLeading) {
             loadingProgress
@@ -86,6 +91,9 @@ struct WebView: Representable {
     @Bindable var playbackSession: PlaybackSession
     let blockingService: BlockingService
     let url: URL
+    let onTimeInfo: (TimeInfo) -> Void
+    let iFrameLogs: (String) -> Void
+
 
     #if os(iOS)
     func makeUIView(context: Context) -> WKWebView {
@@ -156,7 +164,7 @@ struct WebView: Representable {
     #endif
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(vm: vm)
+        Coordinator(vm: vm, onTimeInfo: onTimeInfo, iFrameLogs: iFrameLogs)
     }
 
     static func dismantleUIView(_ uiView: WKWebView, coordinator: Coordinator) {
@@ -174,32 +182,27 @@ struct WebView: Representable {
 
         private var videoFrame: WKFrameInfo?
         private var vm: EmbeddedMovieViewModel
+        let onTimeInfo: (TimeInfo) -> Void
+        let iFrameLogs: (String) -> Void
 
         private var kvoTokens: [NSKeyValueObservation] = []
 
-        init(vm: EmbeddedMovieViewModel) {
+        init(
+            vm: EmbeddedMovieViewModel,
+            onTimeInfo: @escaping (TimeInfo) -> Void,
+            iFrameLogs: @escaping (String) -> Void
+        ) {
             self.vm = vm
+            self.onTimeInfo = onTimeInfo
+            self.iFrameLogs = iFrameLogs
             super.init()
         }
 
         func attach(to webView: WKWebView) {
             webView.navigationDelegate = self
             webView.uiDelegate = self
-
-            kvoTokens.append(
-                webView.observe(\.isLoading, options: .new) { [weak self] _, change in
-                    guard let self else { return }
-                    let val = change.newValue ?? false
-                    Task { @MainActor in self.vm.isLoading = val }
-                }
-            )
-            kvoTokens.append(
-                webView.observe(\.estimatedProgress, options: .new) { [weak self] _, change in
-                    guard let self else { return }
-                    let val = change.newValue ?? 0
-                    Task { @MainActor in self.vm.estimatedProgress = val }
-                }
-            )
+            startObservation(with: webView)
+            attachWatcher(to: webView)
         }
 
         /// Turns user-tapped universal links into programmatic web view loads.
@@ -275,6 +278,116 @@ struct WebView: Representable {
             Task { @MainActor in
                 vm.showError = false
             }
+        }
+    }
+}
+
+/// Helpers
+extension WebView.Coordinator {
+    internal func startObservation(with webView: WKWebView) {
+        kvoTokens.append(
+            webView.observe(\.isLoading, options: .new) { [weak self] _, change in
+                guard let self else { return }
+                let val = change.newValue ?? false
+                Task { @MainActor in self.vm.isLoading = val }
+            }
+        )
+        kvoTokens.append(
+            webView.observe(\.estimatedProgress, options: .new) { [weak self] _, change in
+                guard let self else { return }
+                let val = change.newValue ?? 0
+                Task { @MainActor in self.vm.estimatedProgress = val }
+            }
+        )
+    }
+
+    internal func attachWatcher(to webView: WKWebView) {
+        guard let monitorUrl = Bundle.module.url(
+            forResource: "monitorIFrame",
+            withExtension: "js"
+        ) else {
+            print("Couldnt find monitorIFrame.js")
+            return
+        }
+        guard let monitorText = try? String(contentsOf: monitorUrl, encoding: .utf8) else {
+            print("Couldnt convert monitorIFrame.js to text")
+            return
+        }
+
+        let monitorScript = WKUserScript(
+            source: monitorText,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: false
+        )
+        webView.configuration.userContentController.addUserScript(monitorScript)
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "iframeDebug")
+        webView.configuration.userContentController.add(self, name: "iframeDebug")
+
+
+        guard let iFrameLoggerUrl = Bundle.module.url(
+            forResource: "IFrameLogger",
+            withExtension: "js"
+        ) else {
+            print("Couldnt Find IFrameLogger.js")
+            return
+        }
+        guard let iFrameLoggerText = try? String(contentsOf: iFrameLoggerUrl, encoding: .utf8) else {
+            print("Couldnt convert IFrameLogger.js to text")
+            return
+        }
+
+        let loggerScript = WKUserScript(
+            source: iFrameLoggerText,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: false
+        )
+
+        webView.configuration.userContentController.addUserScript(loggerScript)
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "iframeLog")
+        webView.configuration.userContentController.add(self, name: "iframeLog")
+    }
+}
+
+extension WebView.Coordinator: WKScriptMessageHandler {
+
+    func userContentController(
+        _ userContentController: WKUserContentController,
+        didReceive message: WKScriptMessage
+    ) {
+        switch message.name {
+        case "iframeLog":
+            guard let dictionary = message.body as? [String: Any] else {
+                print("Couldnt convert message body into dictionary")
+                return
+            }
+            guard let jsonData = try? JSONSerialization.data(withJSONObject: dictionary) else {
+                print("Coudlnt convert dictionary into json data")
+                return
+            }
+
+            iFrameLogs(String(data: jsonData, encoding: .utf8) ?? "Unable To Decode message.body")
+
+        case "iframeDebug":
+
+            guard let dictionary = message.body as? [String: Any] else {
+                print("Couldnt convert message body into dictionary")
+                return
+            }
+            guard let jsonData = try? JSONSerialization.data(withJSONObject: dictionary) else {
+                print("Coudlnt convert dictionary into json data")
+                return
+            }
+
+            iFrameLogs(String(data: jsonData, encoding: .utf8) ?? "Unable To Decode message.body")
+
+            do {
+                let timeInfo = try JSONDecoder().decode(TimeInfo.self, from: jsonData)
+                onTimeInfo(timeInfo)
+            } catch {
+                print("Error Converting iframeDebug body into `TimeInfo`: \(error.localizedDescription)")
+            }
+        default:
+            break
         }
     }
 }
