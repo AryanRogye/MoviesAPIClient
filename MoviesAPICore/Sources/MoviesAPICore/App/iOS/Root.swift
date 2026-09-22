@@ -45,7 +45,7 @@ public struct Root: View {
                         }
                     }
 
-                    Tab("Library", systemImage: "building.columns", value: .library) {
+                    Tab("Library", systemImage: "books.vertical.fill", value: .library) {
                         NavigationStack(path: $libraryPath) {
                             Library()
                                 .navigationDestination(for: PlaybackRoute.self) { _ in
@@ -81,6 +81,7 @@ public struct Root: View {
                         }
                     }
                 }
+                .tint(.yellow)
                 .onChange(of: playbackSession.activationID) {
                     playbackSession.sourceTab = selectedTab
                 }

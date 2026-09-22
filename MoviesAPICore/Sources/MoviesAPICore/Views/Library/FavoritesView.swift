@@ -191,12 +191,16 @@ struct FavoriteRow: View {
         .frame(width: 110)
         .overlay(alignment: .topTrailing) {
             Text(favorite.mediaType == "tv" ? "TV" : "Movie")
-                .font(.caption2.weight(.bold))
-                .padding(.horizontal, 6)
+                .font(.caption2.bold())
+                .padding(.horizontal, 5)
                 .padding(.vertical, 3)
-                .background(.black.opacity(0.6), in: Capsule())
-                .foregroundStyle(.white)
-                .padding(6)
+                .glassEffect(.regular.tint(.yellow.opacity(0.1)), in: .capsule)
+                .overlay {
+                    Capsule()
+                        .strokeBorder(.yellow.opacity(0.2), lineWidth: 1)
+                }
+                .padding(5)
+                .allowsHitTesting(false)
         }
         .contentShape(Rectangle())
         .contextMenu {

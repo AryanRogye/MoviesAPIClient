@@ -31,7 +31,11 @@ struct HomeRow: View {
                 .font(.caption2.bold())
                 .padding(.horizontal, 5)
                 .padding(.vertical, 3)
-                .background(.ultraThinMaterial, in: .capsule)
+                .glassEffect(.regular.tint(.yellow.opacity(0.1)), in: .capsule)
+                .overlay {
+                    Capsule()
+                        .strokeBorder(.yellow.opacity(0.2), lineWidth: 1)
+                }
                 .padding(5)
                 .allowsHitTesting(false)
         }

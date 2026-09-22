@@ -35,78 +35,113 @@ public struct Home: View {
         }
     }
 
+    @AppStorage("home.trendingExpanded")
+    private var trendingExpanded = true
+
+    @AppStorage("home.nowPlayingMoviesExpanded")
+    private var nowPlayingMoviesExpanded = true
+
+    @AppStorage("home.popularTVExpanded")
+    private var popularTVExpanded = true
+
+    @AppStorage("home.popularMoviesExpanded")
+    private var popularMoviesExpanded = true
+
+    @AppStorage("home.topRatedTVExpanded")
+    private var topRatedTVExpanded = true
+
+    @AppStorage("home.topRatedMoviesExpanded")
+    private var topRatedMoviesExpanded = true
 
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Trending All Day")
-                    .font(.title2.bold())
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-                HomeListView(
-                    contents: filteredResults,
-                    error: $error,
-                    showError: $showError
-                )
-
-                if selectedFilter == .movies || selectedFilter == .all {
-                    Text("Now Playing Movies")
-                        .font(.title2.bold())
-                        .padding(.horizontal)
-                        .padding(.top, 8)
+                DisclosureGroup(isExpanded: $trendingExpanded) {
                     HomeListView(
-                        contents: tmdbManager.nowPlayingMovies,
+                        contents: filteredResults,
                         error: $error,
                         showError: $showError
                     )
+                } label: {
+                    Text("Trending All Day")
+                        .font(.title2.bold())
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                }
+
+                if selectedFilter == .movies || selectedFilter == .all {
+                    DisclosureGroup(isExpanded: $nowPlayingMoviesExpanded) {
+                        HomeListView(
+                            contents: tmdbManager.nowPlayingMovies,
+                            error: $error,
+                            showError: $showError
+                        )
+                    } label: {
+                        Text("Now Playing Movies")
+                            .font(.title2.bold())
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                    }
                 }
 
                 if selectedFilter == .tv || selectedFilter == .all {
-                    Text("Popular TV Shows")
-                        .font(.title2.bold())
-                        .padding(.horizontal)
-                        .padding(.top, 8)
-                    HomeListView(
-                        contents: tmdbManager.popularTV,
-                        error: $error,
-                        showError: $showError
-                    )
+                    DisclosureGroup(isExpanded: $popularTVExpanded) {
+                        HomeListView(
+                            contents: tmdbManager.popularTV,
+                            error: $error,
+                            showError: $showError
+                        )
+                    } label: {
+                        Text("Popular TV Shows")
+                            .font(.title2.bold())
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                    }
                 }
 
                 if selectedFilter == .movies || selectedFilter == .all {
-                    Text("Popular Movies")
-                        .font(.title2.bold())
-                        .padding(.horizontal)
-                        .padding(.top, 8)
-                    HomeListView(
-                        contents: tmdbManager.popularMovies,
-                        error: $error,
-                        showError: $showError
-                    )
+                    DisclosureGroup(isExpanded: $popularMoviesExpanded) {
+                        HomeListView(
+                            contents: tmdbManager.popularMovies,
+                            error: $error,
+                            showError: $showError
+                        )
+                    } label: {
+                        Text("Popular Movies")
+                            .font(.title2.bold())
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                    }
                 }
 
                 if selectedFilter == .tv || selectedFilter == .all {
-                    Text("Top Rated TV Shows")
-                        .font(.title2.bold())
-                        .padding(.horizontal)
-                        .padding(.top, 8)
-                    HomeListView(
-                        contents: tmdbManager.topRatedTV,
-                        error: $error,
-                        showError: $showError
-                    )
+                    DisclosureGroup(isExpanded: $topRatedTVExpanded) {
+                        HomeListView(
+                            contents: tmdbManager.topRatedTV,
+                            error: $error,
+                            showError: $showError
+                        )
+                    } label: {
+                        Text("Top Rated TV Shows")
+                            .font(.title2.bold())
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                    }
                 }
 
                 if selectedFilter == .movies || selectedFilter == .all {
-                    Text("Top Rated Movies")
-                        .font(.title2.bold())
-                        .padding(.horizontal)
-                        .padding(.top, 8)
-                    HomeListView(
-                        contents: tmdbManager.topRatedMovies,
-                        error: $error,
-                        showError: $showError
-                    )
+                    DisclosureGroup(isExpanded: $topRatedMoviesExpanded) {
+                        HomeListView(
+                            contents: tmdbManager.topRatedMovies,
+                            error: $error,
+                            showError: $showError
+                        )
+                    } label: {
+                        Text("Top Rated Movies")
+                            .font(.title2.bold())
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                    }
                 }
             }
             .padding(.bottom)
