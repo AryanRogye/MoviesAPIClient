@@ -68,7 +68,7 @@ public struct HistoryView: View {
                                     modelContext.delete(item)
                                 } label: {
                                     Label(
-                                        "Remove from History",
+                                        "Remove",
                                         systemImage: "trash"
                                     )
                                 }

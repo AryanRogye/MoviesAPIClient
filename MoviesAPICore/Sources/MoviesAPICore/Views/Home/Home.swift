@@ -16,8 +16,6 @@ public struct Home: View {
     @State private var error: String?
     @State private var showError: Bool = false
 
-    @State private var selectedFilter: LibraryFilter = .all
-
     public init() {}
 
     var filteredResults: [KTTrendingResult] {
@@ -34,6 +32,9 @@ public struct Home: View {
             }
         }
     }
+
+    @AppStorage("home.selectedFilter")
+    private var selectedFilter: LibraryFilter = .all
 
     @AppStorage("home.trendingExpanded")
     private var trendingExpanded = true
@@ -63,7 +64,7 @@ public struct Home: View {
                         showError: $showError
                     )
                 } label: {
-                    Text("Trending All Day")
+                    Text("Trending Today")
                         .font(.title2.bold())
                         .padding(.horizontal)
                         .padding(.top, 8)
@@ -182,15 +183,15 @@ public struct Home: View {
 //            }
             do {
                 try await tmdbManager.trending()
-                try? await Task.sleep(for: .seconds(1))
+                try await Task.sleep(for: .seconds(1))
                 try await tmdbManager.nowPlaying()
-                try? await Task.sleep(for: .seconds(1))
+                try await Task.sleep(for: .seconds(1))
                 try await tmdbManager.popularTV()
-                try? await Task.sleep(for: .seconds(1))
+                try await Task.sleep(for: .seconds(1))
                 try await tmdbManager.popularMovie()
-                try? await Task.sleep(for: .seconds(1))
+                try await Task.sleep(for: .seconds(1))
                 try await tmdbManager.topRatedTV()
-                try? await Task.sleep(for: .seconds(1))
+                try await Task.sleep(for: .seconds(1))
                 try await tmdbManager.topRatedMovie()
             } catch {
                 self.error = error.localizedDescription
