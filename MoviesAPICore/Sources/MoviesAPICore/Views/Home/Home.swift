@@ -183,15 +183,15 @@ public struct Home: View {
 //            }
             do {
                 try await tmdbManager.trending()
-                try await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: .seconds(1))
                 try await tmdbManager.nowPlaying()
-                try await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: .seconds(1))
                 try await tmdbManager.popularTV()
-                try await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: .seconds(1))
                 try await tmdbManager.popularMovie()
-                try await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: .seconds(1))
                 try await tmdbManager.topRatedTV()
-                try await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: .seconds(1))
                 try await tmdbManager.topRatedMovie()
             } catch {
                 self.error = error.localizedDescription

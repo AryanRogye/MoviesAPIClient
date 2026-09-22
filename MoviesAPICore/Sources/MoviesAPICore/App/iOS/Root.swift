@@ -87,47 +87,9 @@ public struct Root: View {
                 }
                 #if os(iOS)
                 .tabViewBottomAccessory(isEnabled: playbackSession.isActive) {
-                    HStack(spacing: 10) {
-                        Button(action: playbackSession.stop) {
-                            Image(systemName: "xmark")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 30, height: 40)
-                                .contentShape(.rect)
-                        }
-                        .buttonStyle(.plain)
-
-                        Button(action: returnToPlayback) {
-                            HStack(spacing: 10) {
-                                if let posterPath = playbackSession.playback?.posterPath,
-                                   let posterURL = URL(string: "https://image.tmdb.org/t/p/w500\(posterPath)") {
-                                    AsyncImage(url: posterURL) { image in
-                                        image
-                                            .resizable()
-                                            .scaledToFill()
-                                    } placeholder: {
-                                        Color.secondary.opacity(0.2)
-                                    }
-                                    .frame(width: 40, height: 40)
-                                    .clipShape(.rect(cornerRadius: 5))
-                                }
-
-                                Text(playbackSession.playback?.title ?? "Now Playing")
-                                    .lineLimit(1)
-
-                                Spacer()
-
-                                Image(systemName: "chevron.up")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                            }
-                            .contentShape(.rect)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(4)
-                    .padding(.horizontal, 8)
+                    PlaybackPlayerView(returnToPlayback: returnToPlayback)
                 }
+                .tabBarMinimizeBehavior(.onScrollDown)
                 #endif
                 .environment(tmdbManager)
                 .environment(blockingService)
