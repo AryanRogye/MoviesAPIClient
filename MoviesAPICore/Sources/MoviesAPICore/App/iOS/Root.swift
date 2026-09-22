@@ -85,12 +85,12 @@ public struct Root: View {
                 .onChange(of: playbackSession.activationID) {
                     playbackSession.sourceTab = selectedTab
                 }
-                #if os(iOS)
+#if os(iOS)
                 .tabViewBottomAccessory(isEnabled: playbackSession.isActive) {
                     PlaybackPlayerView(returnToPlayback: returnToPlayback)
                 }
                 .tabBarMinimizeBehavior(.onScrollDown)
-                #endif
+#endif
                 .environment(tmdbManager)
                 .environment(blockingService)
                 .environment(playbackSession)

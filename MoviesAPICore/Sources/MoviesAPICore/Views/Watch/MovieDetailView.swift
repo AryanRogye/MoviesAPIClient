@@ -41,8 +41,46 @@ public struct MovieDetailView: View {
     @State private var collectionName: String = ""
     @State private var collectionResultToAdd: KTSearchResult?
 
+    private var titleLineLimit: Int {
+        if let title = result.title {
+            title.count <= 25 ? 1 : 2
+        } else {
+            1
+        }
+    }
+
+#if os(iOS)
+    var overviewFont: UIFont {
+        let descriptor = UIFontDescriptor
+            .preferredFontDescriptor(withTextStyle: .subheadline)
+            .withDesign(.serif)!
+            .addingAttributes([
+                .traits: [
+                    UIFontDescriptor.TraitKey.weight: UIFont.Weight.medium
+                ]
+            ])
+
+        return UIFont(descriptor: descriptor, size: 0)
+    }
+#elseif os(macOS)
+    var overviewFont: NSFont {
+        let size = NSFont.preferredFont(forTextStyle: .subheadline).pointSize
+
+        let descriptor = NSFontDescriptor
+            .preferredFontDescriptor(forTextStyle: .subheadline)
+            .withDesign(.serif)!
+            .addingAttributes([
+                .traits: [
+                    NSFontDescriptor.TraitKey.weight: NSFont.Weight.medium
+                ]
+            ])
+
+        return NSFont(descriptor: descriptor, size: size)!
+    }
+#endif
+
     public var body: some View {
-        VStack {
+        ZStack {
             if let movieUrl {
 #if os(iOS)
                 GeometryReader { proxy in
@@ -63,90 +101,58 @@ public struct MovieDetailView: View {
                     .padding(.horizontal, 10)
 #endif
             } else {
-                GeometryReader { geometry in
-                    ZStack {
-                        MovieImageView(result: result)
-                            .frame(
-                                width: geometry.size.width,
-                                height: geometry.size.height
-                            )
-                            .clipped()
-                            .ignoresSafeArea(edges: .top)
-
-                        // Same poster, but blurred only toward the bottom
-                        MovieImageView(result: result)
-                            .frame(
-                                width: geometry.size.width,
-                                height: geometry.size.height
-                            )
-                            .clipped()
-                            .ignoresSafeArea(edges: .top)
-                            .blur(radius: 12)
-                            .mask {
-                                LinearGradient(
-                                    stops: [
-                                        .init(color: .clear, location: 0.55),
-                                        .init(color: .black.opacity(0.3), location: 0.68),
-                                        .init(color: .black, location: 0.82)
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            }
-
-                        LinearGradient(
-                            stops: [
-                                .init(color: .clear, location: 0.45),
-                                .init(color: .black.opacity(0.15), location: 0.58),
-                                .init(color: .black.opacity(0.55), location: 0.72),
-                                .init(color: .black.opacity(0.85), location: 0.86),
-                                .init(color: .black, location: 1.0),
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-
+                Color.black
+                    .ignoresSafeArea()
+                    .overlay {
+                        MovieImageBackground(imagePath: result.posterPath)
+                            .ignoresSafeArea()
+                    }
+                    .overlay(alignment: .bottomLeading) {
                         VStack(alignment: .leading, spacing: 10) {
                             Text(result.title ?? "")
                                 .font(.system(.largeTitle, design: .serif))
                                 .fontWeight(.semibold)
-                                .minimumScaleFactor(0.5)
-                                .lineLimit(1)
+                                .lineLimit(titleLineLimit)
+                                .minimumScaleFactor(0.8)
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.white, .white.opacity(0.7)],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                                .shadow(color: .black.opacity(0.6), radius: 4, x: 0, y: 2)
 
-                            Text(result.overview ?? "")
-                                .font(.subheadline)
-                                .foregroundStyle(.white.opacity(0.8))
-                                .lineSpacing(3)
-                                .lineLimit(3)
+
+                            ExpandableText(
+                                text: result.overview ?? "",
+                                tintColor: .yellow,
+                                font: overviewFont,
+                                background: .black,
+                                foregroundStyle: .white.opacity(0.65)
+                            )
+                            .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
 
                             Button {
                                 loadMovie()
                             } label: {
                                 Label("Play Movie", systemImage: "play.fill")
                                     .font(.body)
-                                    .fontWeight(.medium)
+                                    .fontWeight(.bold)
                                     .foregroundStyle(.white)
-                                    .padding(.vertical, 8)
-                                    .padding(.horizontal, 64)
-                                    .background {
-                                        Capsule()
-                                            .glassEffect(.clear, in: .capsule)
-                                    }
+                                    .padding(.vertical, 10)
+                                    .padding(.horizontal, 20)
+                                    .glassEffect(.clear.tint(.yellow.opacity(0.1).mix(with: .black, by: 0.8)), in: .capsule)
                             }
                             .buttonStyle(.plain)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .padding(8)
-                        .frame(
-                            maxWidth: .infinity,
-                            maxHeight: .infinity,
-                            alignment: .bottomLeading
-                        )
-                        .padding(.bottom, 32)
+                        .padding()
                     }
-                }
             }
         }
         .navigationBarBackButtonHidden()
+        .navigationTitle(result.name ?? result.title ?? "")
         .frame(maxWidth: .infinity)
         .onChange(of: displayServer) {
             if hasLoadedMovie {
@@ -187,14 +193,23 @@ public struct MovieDetailView: View {
                 .environment(\.menuOrder, .fixed)
 
 
-                Picker("Server", selection: $displayServer) {
+                Menu {
                     ForEach(KTDisplayServer.entries, id: \.self) { server in
-                        Text(server.rawValue)
-                            .tag(server)
+                        Button {
+                            displayServer = server
+                        } label: {
+                            if displayServer == server {
+                                Label(server.rawValue, systemImage: "checkmark")
+                            } else {
+                                Text(server.rawValue)
+                            }
+                        }
                     }
+                } label: {
+                    Text(displayServer.rawValue)
+                        .foregroundStyle(.yellow)
                 }
-                .pickerStyle(.menu)
-                .tint(.primary)
+                .tint(.yellow)
 
                 if let movieUrl {
                     Button {
@@ -252,15 +267,48 @@ public struct MovieDetailView: View {
     }
 }
 
-private struct MovieImageView: View {
+private struct MovieImageBackground: View {
 
-    let result: KTSearchResult
-
-    var imagePath: String? {
-        result.posterPath
-    }
+    let imagePath: String?
 
     var body: some View {
+        ZStack(alignment: .center) {
+            imageView
+                .frame(
+                    maxWidth: .infinity,
+                    maxHeight: .infinity
+                )
+            imageView
+                .frame(
+                    maxWidth: .infinity,
+                    maxHeight: .infinity
+                )
+                .blur(radius: 15)
+                .mask {
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear, location: 0.5),
+                            .init(color: .black.opacity(0.5), location: 0.6),
+                            .init(color: .black, location: 0.8)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                }
+
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0.5),
+                    .init(color: .black.opacity(0.65), location: 0.72),
+                    .init(color: .black.opacity(0.75), location: 0.86),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+    }
+
+    private var imageView: some View {
         Group {
             if let posterPath = imagePath,
                let url = URL(

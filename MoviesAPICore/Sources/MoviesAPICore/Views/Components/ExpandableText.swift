@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct ExpandableText: View {
+struct ExpandableText<ForegroundStlye: ShapeStyle>: View {
     let text: String
     var collapsedLines: Int = 3
     let tintColor: Color
@@ -17,28 +17,34 @@ struct ExpandableText: View {
     let font: NSFont
     #endif
     var background: Color
+    var foregroundStyle: ForegroundStlye
 
     @State private var isTruncated = false
     @State private var isExpanded = false
     @State private var displayString: AttributedString?
     @State private var containerWidth: CGFloat = 0
 
-    private static let moreURL = URL(string: "expandable-text://more")!
-    private static let lessURL = URL(string: "expandable-text://less")!
+    private let moreURL = URL(string: "expandable-text://more")!
+    private let lessURL = URL(string: "expandable-text://less")!
 
     var body: some View {
         Text(displayString ?? AttributedString(text))
+            .foregroundStyle(foregroundStyle)
+            .onChange(of: text) {
+                isExpanded = false
+                rebuild()
+            }
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { newWidth in
                 guard newWidth > 0, newWidth != containerWidth else { return }
                 containerWidth = newWidth
                 rebuild()
             }
             .environment(\.openURL, OpenURLAction { url in
-                if url == Self.moreURL {
+                if url == moreURL {
                     withAnimation(.easeInOut) { isExpanded = true }
                     rebuild()
                     return .handled
-                } else if url == Self.lessURL {
+                } else if url == lessURL {
                     withAnimation(.easeInOut) { isExpanded = false }
                     rebuild()
                     return .handled
@@ -52,12 +58,12 @@ struct ExpandableText: View {
         guard containerWidth > 0 else { return }
 
         if isExpanded {
-            var s = AttributedString(text)
+            var s = baseAttributedString(text)
             s += AttributedString(" Show less")
             if let range = s.range(of: "Show less") {
                 s[range].foregroundColor = tintColor
-                s[range].font = .callout.weight(.semibold)
-                s[range].link = Self.lessURL
+                s[range].font = Font(font).weight(.semibold)
+                s[range].link = lessURL
             }
             displayString = s
             return
@@ -67,7 +73,7 @@ struct ExpandableText: View {
         isTruncated = lines.count > collapsedLines
 
         guard isTruncated else {
-            displayString = AttributedString(text)
+            displayString = baseAttributedString(text)
             return
         }
 
@@ -83,15 +89,21 @@ struct ExpandableText: View {
             visible.removeLast()
         }
 
-        var s = AttributedString(visible.trimmedTrailingWhitespace)
+        var s = baseAttributedString(visible.trimmedTrailingWhitespace)
         s += AttributedString("… ")
         var more = AttributedString("More")
         more.foregroundColor = tintColor
-        more.font = .body.weight(.semibold)
-        more.link = Self.moreURL
+        more.font = Font(font).weight(.semibold)
+        more.link = moreURL
         s += more
 
         displayString = s
+    }
+
+    private func baseAttributedString(_ text: String) -> AttributedString {
+        var string = AttributedString(text)
+        string.font = Font(font)
+        return string
     }
 
     // MARK: - TextKit measuring

@@ -139,6 +139,7 @@ public struct TVDetailView: View {
         }
         .scrollDisabled(hideSeasonsAndEpisodes)
         .navigationBarBackButtonHidden()
+        .navigationTitle(result.name ?? result.title ?? "")
         .alert(isPresented: $showError) {
             Alert(
                 title: Text("Error"),
@@ -201,14 +202,23 @@ public struct TVDetailView: View {
                 .menuIndicator(.hidden)
                 .environment(\.menuOrder, .fixed)
 
-                Picker("Server", selection: $displayServer) {
+                Menu {
                     ForEach(KTDisplayServer.entries, id: \.self) { server in
-                        Text(server.rawValue)
-                            .tag(server)
+                        Button {
+                            displayServer = server
+                        } label: {
+                            if displayServer == server {
+                                Label(server.rawValue, systemImage: "checkmark")
+                            } else {
+                                Text(server.rawValue)
+                            }
+                        }
                     }
+                } label: {
+                    Text(displayServer.rawValue)
+                        .foregroundStyle(.yellow)
                 }
-                .pickerStyle(.menu)
-                .tint(.primary)
+                .tint(.yellow)
 
                 if let tvUrl {
                     Button {
@@ -539,7 +549,8 @@ private struct TVShowInfo: View {
                     text: selectedEpisode.overview,
                     tintColor: .yellow,
                     font: .preferredFont(forTextStyle: .body),
-                    background: .black
+                    background: .black,
+                    foregroundStyle: .secondary
                 )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -553,7 +564,10 @@ private struct SeasonsView: View {
 
     let tvShow: KTTVShow?
     let isLoadingSeason: Bool
+
     @Binding var selectedSeasonNumber: Int?
+
+    @Namespace private var nm
 
     let columns = [
         GridItem(.flexible()),
@@ -570,26 +584,51 @@ private struct SeasonsView: View {
 
                 LazyVGrid(columns: columns, spacing: 16) {
                     ForEach(tvShow.seasons, id: \.id) { season in
+                        let seasonNumber = Int(season.seasonNumber)
+                        let isSelected = selectedSeasonNumber == seasonNumber
+
                         Text("Season \(season.seasonNumber)")
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(
-                                selectedSeasonNumber == Int(season.seasonNumber)
-                                ? .primary
-                                : .secondary
+                                isSelected ? .primary : .secondary
                             )
                             .frame(maxWidth: .infinity)
                             .padding(8)
                             .background {
-                                Capsule()
-                                    .fill(
-                                        selectedSeasonNumber == Int(season.seasonNumber)
-                                        ? .white.opacity(0.16)
-                                        : .white.opacity(0.06)
-                                    )
+                                if isSelected {
+                                    Capsule()
+                                        .fill(.yellow.opacity(0.16))
+                                        .background {
+                                            Capsule()
+                                                .stroke(
+                                                    .yellow.opacity(0.6),
+                                                    style: .init(lineWidth: 1)
+                                                )
+                                        }
+                                        .shadow(
+                                            color: .yellow,
+                                            radius: 8
+                                        )
+                                        .matchedGeometryEffect(
+                                            id: "ACTIVE_SEASON_PILL",
+                                            in: nm
+                                        )
+                                } else {
+                                    Capsule()
+                                        .fill(.white.opacity(0.06))
+                                }
                             }
                             .onTapGesture {
                                 guard !isLoadingSeason else { return }
-                                selectedSeasonNumber = Int(season.seasonNumber)
+
+                                withAnimation(
+                                    .spring(
+                                        response: 0.3,
+                                        dampingFraction: 0.7
+                                    )
+                                ) {
+                                    selectedSeasonNumber = seasonNumber
+                                }
                             }
                     }
                 }
@@ -603,7 +642,10 @@ private struct SeasonsView: View {
 private struct EpisodesView: View {
 
     let seasonInfo: KTSeasonInfo?
+
     @Binding var selectedEpisode: KTEpisode?
+
+    @Namespace private var nm
 
     let columns = [
         GridItem(.flexible()),
@@ -618,26 +660,49 @@ private struct EpisodesView: View {
                     .fontWeight(.bold)
 
                 LazyVGrid(columns: columns, spacing: 16) {
-                    ForEach(seasonInfo.episodes, id: \.id)  { episode in
+                    ForEach(seasonInfo.episodes, id: \.id) { episode in
+                        let isSelected = selectedEpisode == episode
+
                         Text("Episode \(episode.episodeNumber)")
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(
-                                selectedEpisode == episode
-                                ? .primary
-                                : .secondary
+                                isSelected ? .primary : .secondary
                             )
                             .frame(maxWidth: .infinity)
                             .padding(8)
                             .background {
-                                Capsule()
-                                    .fill(
-                                        selectedEpisode == episode
-                                        ? .white.opacity(0.16)
-                                        : .white.opacity(0.06)
-                                    )
+                                if isSelected {
+                                    Capsule()
+                                        .fill(.yellow.opacity(0.16))
+                                        .background {
+                                            Capsule()
+                                                .stroke(
+                                                    .yellow.opacity(0.6),
+                                                    style: .init(lineWidth: 1)
+                                                )
+                                        }
+                                        .shadow(
+                                            color: .yellow,
+                                            radius: 8
+                                        )
+                                        .matchedGeometryEffect(
+                                            id: "ACTIVE_EPISODE_PILL",
+                                            in: nm
+                                        )
+                                } else {
+                                    Capsule()
+                                        .fill(.white.opacity(0.06))
+                                }
                             }
                             .onTapGesture {
-                                selectedEpisode = episode
+                                withAnimation(
+                                    .spring(
+                                        response: 0.3,
+                                        dampingFraction: 0.7
+                                    )
+                                ) {
+                                    selectedEpisode = episode
+                                }
                             }
                     }
                 }
