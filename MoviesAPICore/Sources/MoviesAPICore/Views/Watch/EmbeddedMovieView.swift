@@ -7,6 +7,7 @@
 
 import SwiftUI
 import WebKit
+import MemoryUsage
 
 @Observable
 @MainActor
@@ -42,6 +43,7 @@ struct EmbeddedMovieView: View {
     let url: URL
     var onTimeInfo: (TimeInfo) -> Void = { _ in }
     var iFrameLogs: (String) -> Void = { _ in }
+    var navigationLogs: (String) -> Void = { _ in }
 
     var body: some View {
         WebView(
@@ -50,10 +52,17 @@ struct EmbeddedMovieView: View {
             blockingService: blockingService,
             url: url,
             onTimeInfo: onTimeInfo,
-            iFrameLogs: iFrameLogs
+            iFrameLogs: iFrameLogs,
+            navigationLogs: navigationLogs
         )
         .overlay(alignment: .topLeading) {
             loadingProgress
+        }
+        .alert(isPresented: $vm.showError) {
+            Alert(
+                title: Text("Error"),
+                message: Text("\(vm.error, default: "Unknown Error")")
+            )
         }
     }
 
@@ -79,7 +88,6 @@ struct EmbeddedMovieView: View {
 
 #if os(iOS)
 private typealias Representable = UIViewRepresentable
-
 #elseif os(macOS)
 private typealias Representable = NSViewRepresentable
 #endif
@@ -93,10 +101,21 @@ struct WebView: Representable {
     let url: URL
     let onTimeInfo: (TimeInfo) -> Void
     let iFrameLogs: (String) -> Void
+    let navigationLogs: (String) -> Void
 
-
-    #if os(iOS)
+#if os(iOS)
     func makeUIView(context: Context) -> WKWebView {
+        return makeWebView(context: context)
+    }
+    func updateUIView(_ uiView: WKWebView, context: Context) {}
+#elseif os(macOS)
+    func makeNSView(context: Context) -> WKWebView {
+        return makeWebView(context: context)
+    }
+    func updateNSView(_ nsView: WKWebView, context: Context) {}
+#endif
+
+    private func makeWebView(context: Context) -> WKWebView {
 
         if let webView = playbackSession.webView {
             blockingService.attachNetworkFilters(to: webView)
@@ -105,43 +124,10 @@ struct WebView: Representable {
         }
 
         let config = WKWebViewConfiguration()
-        config.preferences.javaScriptCanOpenWindowsAutomatically = false
+#if os(iOS)
         config.allowsInlineMediaPlayback = true
         config.allowsPictureInPictureMediaPlayback = true
-        config.mediaTypesRequiringUserActionForPlayback = []
-        config.websiteDataStore = .default()
-
-        blockingService.attachPopupBlocking(to: config)
-
-        let wv = WKWebView(frame: .zero, configuration: config)
-#if DEBUG
-        wv.isInspectable = true
 #endif
-        wv.allowsBackForwardNavigationGestures = false
-        wv.isOpaque = true
-        wv.layer.drawsAsynchronously = true
-        wv.layer.shouldRasterize = false
-        wv.scrollView.decelerationRate = .normal
-
-        playbackSession.webView = wv
-
-        blockingService.attachNetworkFilters(to: wv)
-        context.coordinator.attach(to: wv)
-        wv.load(url)
-        return wv
-    }
-
-    func updateUIView(_ uiView: WKWebView, context: Context) {}
-    #elseif os(macOS)
-    func makeNSView(context: Context) -> WKWebView {
-
-        if let webView = playbackSession.webView {
-            blockingService.attachNetworkFilters(to: webView)
-            context.coordinator.attach(to: webView)
-            return webView
-        }
-
-        let config = WKWebViewConfiguration()
         config.preferences.javaScriptCanOpenWindowsAutomatically = false
         config.mediaTypesRequiringUserActionForPlayback = []
         config.websiteDataStore = .default()
@@ -151,35 +137,34 @@ struct WebView: Representable {
         blockingService.attachPopupBlocking(to: config)
 
         let wv = WKWebView(frame: .zero, configuration: config)
-#if DEBUG
-        wv.isInspectable = true
-#endif
         wv.allowsBackForwardNavigationGestures = false
+
+#if os(iOS)
+        wv.isOpaque = true
+        wv.layer.drawsAsynchronously = true
+        wv.layer.shouldRasterize = false
+        wv.scrollView.decelerationRate = .normal
+#elseif os(macOS)
         wv.layer?.drawsAsynchronously = true
         wv.layer?.shouldRasterize = false
-
-        playbackSession.webView = wv
+#endif
 
         blockingService.attachNetworkFilters(to: wv)
         context.coordinator.attach(to: wv)
+#if os(iOS)
+        playbackSession.webView = wv
+#endif
         wv.load(url)
         return wv
-
     }
-    func updateNSView(_ nsView: WKWebView, context: Context) {}
-    #endif
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(vm: vm, onTimeInfo: onTimeInfo, iFrameLogs: iFrameLogs)
-    }
-
-    static func dismantleUIView(_ uiView: WKWebView, coordinator: Coordinator) {
-        // Split changes can mount a new wrapper around the same WKWebView
-        // before SwiftUI dismantles the old one. Only its current owner may
-        // remove delegates, message handlers, or the active video styling.
-        guard uiView.navigationDelegate === coordinator else { return }
-        uiView.navigationDelegate = nil
-        uiView.uiDelegate = nil
+        Coordinator(
+            vm: vm,
+            onTimeInfo: onTimeInfo,
+            iFrameLogs: iFrameLogs,
+            navigationLogs: navigationLogs
+        )
     }
 
     // MARK: – Web View Delegates
@@ -190,105 +175,86 @@ struct WebView: Representable {
         private var vm: EmbeddedMovieViewModel
         let onTimeInfo: (TimeInfo) -> Void
         let iFrameLogs: (String) -> Void
+        let navigationLogs: (String) -> Void
+        var pid: pid_t?
 
         private var kvoTokens: [NSKeyValueObservation] = []
+
+#if os(macOS)
+        let memory = WebKitMemory()
+        var memoryMonitor: Task<Void, Never>?
+
+        deinit {
+            memoryMonitor?.cancel()
+            memoryMonitor = nil
+        }
+#endif
 
         init(
             vm: EmbeddedMovieViewModel,
             onTimeInfo: @escaping (TimeInfo) -> Void,
-            iFrameLogs: @escaping (String) -> Void
+            iFrameLogs: @escaping (String) -> Void,
+            navigationLogs: @escaping (String) -> Void
         ) {
             self.vm = vm
             self.onTimeInfo = onTimeInfo
             self.iFrameLogs = iFrameLogs
+            self.navigationLogs = navigationLogs
             super.init()
         }
 
         func attach(to webView: WKWebView) {
             webView.navigationDelegate = self
             webView.uiDelegate = self
+            kvoTokens.removeAll()
             startObservation(with: webView)
             attachWatcher(to: webView)
-        }
-
-        /// Turns user-tapped universal links into programmatic web view loads.
-        /// This keeps associated links, such as x.com, from opening their app.
-        func webView(
-            _ webView: WKWebView,
-            decidePolicyFor navigationAction: WKNavigationAction,
-            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
-        ) {
-            // A missing target is a new-window request. Only promote actual
-            // links from the page; window.open() and embedded ad pop-ups must
-            // never replace the current tab, even when triggered by a tap.
-            if navigationAction.targetFrame == nil {
-                decisionHandler(.cancel)
-                if Self.canOpenInCurrentTab(navigationAction) {
-                    webView.load(navigationAction.request)
-                }
-                return
-            }
-
-            guard navigationAction.navigationType == .linkActivated,
-                  navigationAction.targetFrame?.isMainFrame == true,
-                  Self.isWebRequest(navigationAction.request) else {
-                decisionHandler(.allow)
-                return
-            }
-
-            decisionHandler(.cancel)
-            webView.load(navigationAction.request)
-        }
-
-        /// Apply the same restriction if WebKit delivers a new-window request
-        /// directly to the UI delegate. Never load arbitrary scripted pop-ups.
-        func webView(
-            _ webView: WKWebView,
-            createWebViewWith configuration: WKWebViewConfiguration,
-            for navigationAction: WKNavigationAction,
-            windowFeatures: WKWindowFeatures
-        ) -> WKWebView? {
-            guard navigationAction.targetFrame == nil,
-                  Self.canOpenInCurrentTab(navigationAction) else { return nil }
-            webView.load(navigationAction.request)
-            return nil
-        }
-
-        private static func canOpenInCurrentTab(_ action: WKNavigationAction) -> Bool {
-            action.navigationType == .linkActivated
-            && action.sourceFrame.isMainFrame
-            && isWebRequest(action.request)
-        }
-
-        private static func isWebRequest(_ request: URLRequest) -> Bool {
-            guard let scheme = request.url?.scheme?.lowercased() else { return false }
-            return scheme == "http" || scheme == "https"
-        }
-
-        /// Errors
-        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-            Task { @MainActor in
-                vm.handleLoadFailure(error)
-            }
-        }
-
-        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-            Task { @MainActor in
-                vm.handleLoadFailure(error)
-            }
-        }
-
-        /// Navigation Did Finish
-        /// - Tag: WKNavigationDelegate_didFinishNavigation
-        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            Task { @MainActor in
-                vm.showError = false
-            }
+            beginMonitoringMemory()
         }
     }
 }
 
-/// Helpers
+// MARK: - WKWebView Conformance
+extension WebView.Coordinator {
+    /// Apply the same restriction if WebKit delivers a new-window request
+    /// directly to the UI delegate. Never load arbitrary scripted pop-ups.
+    func webView(
+        _ webView: WKWebView,
+        createWebViewWith configuration: WKWebViewConfiguration,
+        for navigationAction: WKNavigationAction,
+        windowFeatures: WKWindowFeatures
+    ) -> WKWebView? {
+        navigationLogs(
+            "Attempted To Navigate To \(navigationAction.request.url?.absoluteString ?? "Unknown URL")"
+        )
+        return nil
+    }
+
+    /// Errors
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        Task { @MainActor in
+            vm.handleLoadFailure(error)
+        }
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        Task { @MainActor in
+            vm.handleLoadFailure(error)
+        }
+    }
+
+    /// Navigation Did Finish
+    /// - Tag: WKNavigationDelegate_didFinishNavigation
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        Task { @MainActor in
+            vm.showError = false
+            loadPID(for: webView)
+        }
+    }
+
+}
+
+// MARK: - Observation
 extension WebView.Coordinator {
     internal func startObservation(with webView: WKWebView) {
         kvoTokens.append(
@@ -306,6 +272,87 @@ extension WebView.Coordinator {
             }
         )
     }
+}
+
+// MARK: - MacOS Memory
+extension WebView.Coordinator {
+
+    private func loadPID(for webView: WKWebView) {
+#if os(macOS)
+        self.pid = memory.webProcessIdentifier(for: webView)
+#endif
+    }
+
+    private func beginMonitoringMemory() {
+#if os(macOS)
+        memoryMonitor?.cancel()
+        memoryMonitor = Task.detached(priority: .background) { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                guard let self else { return }
+                guard let pid = await pid else { continue }
+
+                let mem = getMemoryForProcess(pid);
+                let gb = Double(mem) / 1_000_000_000
+                print("\(pid) Memory: \(gb)GB")
+            }
+        }
+#endif
+    }
+
+#if DEBUG
+    private func findProcessMethods(_ object: AnyObject) {
+        var cls: AnyClass? = object_getClass(object)
+
+        while let current = cls {
+            print("\n=== \(NSStringFromClass(current)) ===")
+
+            var count: UInt32 = 0
+
+            if let methods = class_copyMethodList(current, &count) {
+                defer { free(methods) }
+
+                for i in 0..<Int(count) {
+                    let selector = method_getName(methods[i])
+                    let name = NSStringFromSelector(selector)
+
+                    if name.localizedCaseInsensitiveContains("process") ||
+                        name.localizedCaseInsensitiveContains("pid") {
+                        print(name)
+                    }
+                }
+            }
+
+            cls = class_getSuperclass(current)
+        }
+    }
+#endif
+}
+
+// MARK: - Dismantle
+extension WebView.Coordinator {
+    static func dismantleNSView(_ nsView: WKWebView, coordinator: WebView.Coordinator) {
+        Self.dismantleView(nsView, coordinator: coordinator)
+    }
+    static func dismantleUIView(_ uiView: WKWebView, coordinator: WebView.Coordinator) {
+        Self.dismantleView(uiView, coordinator: coordinator)
+    }
+
+    private static func dismantleView(_ view: WKWebView, coordinator: WebView.Coordinator) {
+        // Split changes can mount a new wrapper around the same WKWebView
+        // before SwiftUI dismantles the old one. Only its current owner may
+        // remove delegates, message handlers, or the active video styling.
+        guard view.navigationDelegate === coordinator else { return }
+        view.navigationDelegate = nil
+        view.uiDelegate = nil
+
+        view.configuration.userContentController.removeScriptMessageHandler(forName: "iframeDebug")
+        view.configuration.userContentController.removeScriptMessageHandler(forName: "iframeLog")
+    }
+}
+
+// MARK: - Scripting
+extension WebView.Coordinator: WKScriptMessageHandler {
 
     internal func attachWatcher(to webView: WKWebView) {
         guard let monitorUrl = Bundle.module.url(
@@ -352,9 +399,6 @@ extension WebView.Coordinator {
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "iframeLog")
         webView.configuration.userContentController.add(self, name: "iframeLog")
     }
-}
-
-extension WebView.Coordinator: WKScriptMessageHandler {
 
     func userContentController(
         _ userContentController: WKUserContentController,
