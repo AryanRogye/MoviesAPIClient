@@ -39,7 +39,7 @@ public struct Home: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Trending")
+                Text("Trending All Day")
                     .font(.title2.bold())
                     .padding(.horizontal)
                     .padding(.top, 8)

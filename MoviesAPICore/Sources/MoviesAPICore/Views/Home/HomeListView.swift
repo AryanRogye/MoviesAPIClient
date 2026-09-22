@@ -42,7 +42,7 @@ struct HomeListView<Media: MediaListItem>: View {
                 if contents.isEmpty {
                     ProgressView()
                 } else {
-                    ForEach(contents, id: \.id) { content in
+                    ForEach(contents, id: \.mediaListItemID) { content in
                         HomeRow(
                             imagePath: content.backdropPath,
                             name: content.displayName,

@@ -53,16 +53,45 @@ class AppCoordinator {
     let appID = UUID().uuidString
 
     public func openApp() {
-        windowCoordinator.showWindow(
+
+        let targetScreen = AppCoordinator.screenUnderMouse() ?? NSScreen.main
+
+        let size: NSSize
+        if let targetScreen {
+            size = .init(width: targetScreen.visibleFrame.width - 100, height: targetScreen.visibleFrame.height - 100)
+        } else {
+            size = .init(width: 500, height: 500)
+        }
+
+        let window = windowCoordinator.showWindow(
             id: appID,
             title: "MoviesAPIClient",
             content: MacOSRoot()
                 .modelContainer(modelContainer)
                 .preferredColorScheme(.dark),
-            size: .init(width: 500, height: 500),
+            size: size,
             isMiniaturizable: true,
             alwaysActiveFocusedLook: true
         )
+
+        if let targetScreen {
+            let frame = targetScreen.visibleFrame
+            window.setFrameOrigin(CGPoint(
+                x: frame.midX - window.frame.width / 2,
+                y: frame.midY - window.frame.height / 2
+            ))
+        }
+
+    }
+
+    /**
+     * Grab the screen under the mouse
+     */
+    public nonisolated static func screenUnderMouse() -> NSScreen? {
+        let loc = NSEvent.mouseLocation
+        return NSScreen.screens.first {
+            NSMouseInRect(loc, $0.frame, false)
+        }
     }
 }
 
