@@ -64,6 +64,10 @@ public struct TVDetailView: View {
 
     @State private var iFrameLogs: [String] = []
 
+    @State private var showCreateCollection: Bool = false
+    @State private var collectionName: String = ""
+    @State private var collectionResultToAdd: KTSearchResult?
+
     public var body: some View {
         GeometryReader { geometry in
             ScrollView {
@@ -141,6 +145,11 @@ public struct TVDetailView: View {
                 message: Text("\(error, default: "Unknown Error")")
             )
         }
+        .modifier(CreateCollectionViewModifier(
+            showCreateCollection: $showCreateCollection,
+            collectionName: $collectionName,
+            collectionResultToAdd: $collectionResultToAdd
+        ))
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button {
@@ -178,6 +187,14 @@ public struct TVDetailView: View {
                     .buttonStyle(.plain)
 
                     Toggle("Enable Autoplay", isOn: $enableAutoPlay)
+
+                    CollectionFavoriteMenu(
+                        result: result,
+                        showCreateCollection: $showCreateCollection,
+                        collectionName: $collectionName,
+                        collectionResultToAdd: $collectionResultToAdd
+                    )
+
                 } label: {
                     Image(systemName: "ellipsis")
                 }

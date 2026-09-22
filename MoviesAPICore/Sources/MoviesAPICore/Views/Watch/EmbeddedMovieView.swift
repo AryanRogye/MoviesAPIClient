@@ -114,6 +114,9 @@ struct WebView: Representable {
         blockingService.attachPopupBlocking(to: config)
 
         let wv = WKWebView(frame: .zero, configuration: config)
+#if DEBUG
+        wv.isInspectable = true
+#endif
         wv.allowsBackForwardNavigationGestures = false
         wv.isOpaque = true
         wv.layer.drawsAsynchronously = true
@@ -148,6 +151,9 @@ struct WebView: Representable {
         blockingService.attachPopupBlocking(to: config)
 
         let wv = WKWebView(frame: .zero, configuration: config)
+#if DEBUG
+        wv.isInspectable = true
+#endif
         wv.allowsBackForwardNavigationGestures = false
         wv.layer?.drawsAsynchronously = true
         wv.layer?.shouldRasterize = false

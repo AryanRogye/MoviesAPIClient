@@ -37,6 +37,10 @@ public struct MovieDetailView: View {
     @State private var hasLoadedMovie: Bool = false
     @State private var reloadID = UUID()
 
+    @State private var showCreateCollection: Bool = false
+    @State private var collectionName: String = ""
+    @State private var collectionResultToAdd: KTSearchResult?
+
     public var body: some View {
         VStack {
             if let movieUrl {
@@ -168,6 +172,21 @@ public struct MovieDetailView: View {
 #endif
 
             ToolbarItemGroup(placement: .primaryAction) {
+
+                Menu {
+                    CollectionFavoriteMenu(
+                        result: result,
+                        showCreateCollection: $showCreateCollection,
+                        collectionName: $collectionName,
+                        collectionResultToAdd: $collectionResultToAdd
+                    )
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
+                .menuIndicator(.hidden)
+                .environment(\.menuOrder, .fixed)
+
+
                 Picker("Server", selection: $displayServer) {
                     ForEach(KTDisplayServer.entries, id: \.self) { server in
                         Text(server.rawValue)
@@ -192,6 +211,11 @@ public struct MovieDetailView: View {
                 message: Text("\(error, default: "Unknown Error")")
             )
         }
+        .modifier(CreateCollectionViewModifier(
+            showCreateCollection: $showCreateCollection,
+            collectionName: $collectionName,
+            collectionResultToAdd: $collectionResultToAdd
+        ))
     }
 
     private func loadMovie() {
