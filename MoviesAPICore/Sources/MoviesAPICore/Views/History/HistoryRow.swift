@@ -24,7 +24,26 @@ struct HistoryRow: View {
 
                     Text("•")
 
-                    Text(history.watchedAt, style: .relative)
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        let seconds = max(0, Int(context.date.timeIntervalSince(history.watchedAt)))
+                        let minutes = seconds / 60
+                        let hours = minutes / 60
+                        let days = hours / 24
+
+                        Group {
+                            if seconds < 60 {
+                                Text("\(seconds)s ago")
+                            } else if minutes < 60 {
+                                Text("\(minutes)m ago")
+                            } else if hours < 24 {
+                                Text("\(hours)h ago")
+                            } else {
+                                Text("\(days)d ago")
+                            }
+                        }
+                        .contentTransition(.numericText())
+                        .animation(.snappy, value: seconds)
+                    }
                 }
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
