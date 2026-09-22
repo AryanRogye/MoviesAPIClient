@@ -6,11 +6,13 @@
 //
 
 import SwiftUI
+import SwiftData
 
 /// Each Collection Gets its
 struct LibraryCollectionDetailView: View {
     @Environment(TMDBManager.self) private var tmdbManager
     @Environment(PlaybackSession.self) private var playbackSession
+    @Environment(\.modelContext) var modelContext
 
     var collection: Collection
 
@@ -91,7 +93,18 @@ struct LibraryCollectionDetailView: View {
 #if os(macOS)
             ToolbarSpacer(.flexible)
 #endif
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Menu {
+                    Toggle("Hide Library Cover Image", isOn: Binding(
+                        get: { collection.hidesCoverImage },
+                        set: { isOn in
+                            collection.hidesCoverImage = isOn
+                            try? modelContext.save()
+                        }
+                    ))
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
                 NavigationLink {
                     passwordNavigation
                 } label: {

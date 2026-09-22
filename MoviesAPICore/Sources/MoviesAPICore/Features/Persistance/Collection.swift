@@ -33,6 +33,8 @@ public final class Collection {
         }
     }
 
+    public var hidesCoverImage: Bool = false
+
     var coverImagePaths: [String] {
         Array(
             results

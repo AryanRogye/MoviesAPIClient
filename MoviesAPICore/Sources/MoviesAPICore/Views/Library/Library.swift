@@ -29,6 +29,7 @@ public struct Library: View {
 
     @Environment(\.modelContext) var modelContext
     @Query var favorites: [Favorite]
+    @Query var collections: [Collection]
 
     @State private var selectedFilter: LibraryFilter = .all
 
@@ -36,29 +37,31 @@ public struct Library: View {
 
     public var body: some View {
         ScrollView {
-            if favorites.isEmpty {
-                emptyView
-            } else {
-                VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 18) {
+                if favorites.isEmpty {
+                    emptyFavoritesView
+                } else {
                     Text("Favorites")
                         .font(.title2.bold())
                         .padding(.horizontal)
                         .padding(.top, 8)
 
-                    FavoritesView(filter: selectedFilter)
 
+                    FavoritesView(filter: selectedFilter)
+                }
+
+                if collections.isEmpty {
+                    emptyCollectionView
+                } else {
                     Text("Collection")
                         .font(.title2.bold())
                         .padding(.horizontal)
                     LibraryCollectionView()
                 }
-                .padding(.bottom)
             }
+            .padding(.bottom)
         }
         .navigationTitle("Library")
-        .onChange(of: selectedFilter) { _, newValue in
-            
-        }
         .toolbar {
 #if os(macOS)
             ToolbarSpacer(.flexible)
@@ -78,11 +81,19 @@ public struct Library: View {
         }
     }
 
-    private var emptyView: some View {
+    private var emptyFavoritesView: some View {
         ContentUnavailableView(
             "No Favorites Yet",
             systemImage: "heart.slash",
             description: Text("Movies and shows you favorite will show up here.")
+        )
+    }
+
+    private var emptyCollectionView: some View {
+        ContentUnavailableView(
+            "No Collections Yet",
+            systemImage: "rectangle.stack",
+            description: Text("Create a collection to organize your favorite movies and shows.")
         )
     }
 }

@@ -36,10 +36,18 @@ struct FavoritesView: View {
         }
     }
 
-    let rows: [GridItem] = [
-        GridItem(.fixed(180), spacing: 12),
-        GridItem(.fixed(180), spacing: 12),
-    ]
+    var rows: [GridItem] {
+        if filteredFavorites.count == 1 {
+            [
+                GridItem(.fixed(180), spacing: 12),
+            ]
+        } else {
+            [
+                GridItem(.fixed(180), spacing: 12),
+                GridItem(.fixed(180), spacing: 12),
+            ]
+        }
+    }
 
     @State private var error: String?
     @State private var showError: Bool = false

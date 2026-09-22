@@ -15,10 +15,18 @@ struct LibraryCollectionView: View {
     @Query var favorites: [Favorite]
     @Query var collection: [Collection]
 
-    let rows: [GridItem] = [
-        GridItem(.fixed(180), spacing: 12),
-        GridItem(.fixed(180), spacing: 12),
-    ]
+    var rows: [GridItem] {
+        if collection.count == 1 {
+            [
+                GridItem(.fixed(180), spacing: 12),
+            ]
+        } else {
+            [
+                GridItem(.fixed(180), spacing: 12),
+                GridItem(.fixed(180), spacing: 12),
+            ]
+        }
+    }
 
     @State private var error: String?
     @State private var showError: Bool = false
@@ -37,11 +45,7 @@ struct LibraryCollectionView: View {
                     NavigationLink {
                         LibraryCollectionDetailView(collection: collection)
                     } label: {
-                        VStack(alignment: .leading) {
-                            CollectionArtworkView(paths: collection.coverImagePaths)
-                            Text(collection.name)
-                        }
-                        .frame(width: 110, height: 165)
+                        CollectionViewRow(collection: collection)
                     }
                     .buttonStyle(.plain)
                 }
@@ -64,6 +68,40 @@ struct LibraryCollectionView: View {
             resolveTask?.cancel()
             resolveTask = nil
         }
+    }
+}
+
+private struct CollectionViewRow: View {
+
+    let collection: Collection
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !collection.hidesCoverImage {
+                CollectionArtworkView(paths: collection.coverImagePaths)
+            } else {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(.quaternary)
+
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(.secondary.opacity(0.25), lineWidth: 1)
+
+                    Image(systemName: "rectangle.stack")
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                }
+                .aspectRatio(2 / 3, contentMode: .fit)
+            }
+
+            Text(collection.name)
+                .font(.callout)
+                .fontWeight(.medium)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+        }
+        .frame(width: 110)
+        .contentShape(Rectangle())
     }
 }
 
