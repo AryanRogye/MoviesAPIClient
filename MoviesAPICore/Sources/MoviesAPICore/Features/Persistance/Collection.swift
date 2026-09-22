@@ -8,7 +8,7 @@
 import SwiftData
 import Foundation
 
-public enum PasswordProtectedCollectionState: Codable {
+public enum PasswordProtectedCollectionState: Codable, Equatable {
     case none
     case password([Int])
 }
@@ -18,12 +18,22 @@ public final class Collection {
     public var id: UUID
     public var name: String
 
-    public var passwordCollectionState: PasswordProtectedCollectionState
-
     @Relationship(deleteRule: .cascade, inverse: \CollectionItem.collection)
     public var results: [CollectionItem]
 
-    var fourImagePaths: [String] {
+    private var passwordCollectionStateData: Data = Data()
+
+    @Transient
+    public var passwordCollectionState: PasswordProtectedCollectionState {
+        get {
+            (try? JSONDecoder().decode(PasswordProtectedCollectionState.self, from: passwordCollectionStateData)) ?? .none
+        }
+        set {
+            passwordCollectionStateData = (try? JSONEncoder().encode(newValue)) ?? Data()
+        }
+    }
+
+    var coverImagePaths: [String] {
         Array(
             results
                 .compactMap(\.posterPath)
@@ -34,14 +44,14 @@ public final class Collection {
     public init(id: UUID = UUID(), name: String, results: [CollectionItem]) {
         self.id = id
         self.name = name
-        self.passwordCollectionState = .none
+        self.passwordCollectionStateData = (try? JSONEncoder().encode(PasswordProtectedCollectionState.none)) ?? Data()
         self.results = results
     }
 
     public init(id: UUID = UUID(), name: String, passwordCollectionState: PasswordProtectedCollectionState, results: [CollectionItem]) {
         self.id = id
         self.name = name
-        self.passwordCollectionState = passwordCollectionState
+        self.passwordCollectionStateData = (try? JSONEncoder().encode(passwordCollectionState)) ?? Data()
         self.results = results
     }
 }

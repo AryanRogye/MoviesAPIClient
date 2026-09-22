@@ -11,6 +11,7 @@ import SwiftData
 public struct Home: View {
 
     @Environment(TMDBManager.self) var tmdbManager
+    @Environment(\.modelContext) var modelContext
 
     @State private var error: String?
     @State private var showError: Bool = false
@@ -136,6 +137,14 @@ public struct Home: View {
             }
         }
         .task {
+//            do {
+//                try modelContext.delete(model: Collection.self)
+//                try modelContext.delete(model: CollectionItem.self)
+//                try modelContext.save()
+//                print("Deleted Models")
+//            } catch {
+//                print("Failed to delete all YourModel objects: \(error)")
+//            }
             do {
                 try await tmdbManager.trending()
                 try? await Task.sleep(for: .seconds(1))

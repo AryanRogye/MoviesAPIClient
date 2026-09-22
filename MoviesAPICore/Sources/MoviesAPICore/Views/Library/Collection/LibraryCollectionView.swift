@@ -34,11 +34,16 @@ struct LibraryCollectionView: View {
         ScrollView(.horizontal) {
             LazyHGrid(rows: rows,spacing: 12) {
                 ForEach(collection, id: \.id) { collection in
-                    VStack(alignment: .leading) {
-                        CollectionArtworkView(paths: collection.fourImagePaths)
-                        Text(collection.name)
+                    NavigationLink {
+                        LibraryCollectionDetailView(collection: collection)
+                    } label: {
+                        VStack(alignment: .leading) {
+                            CollectionArtworkView(paths: collection.coverImagePaths)
+                            Text(collection.name)
+                        }
+                        .frame(width: 110, height: 165)
                     }
-                    .frame(width: 110, height: 165)
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.bottom, 8)
