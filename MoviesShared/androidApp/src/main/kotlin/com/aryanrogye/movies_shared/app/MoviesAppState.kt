@@ -8,7 +8,10 @@ import androidx.compose.runtime.setValue
 import com.aryanrogye.movies_shared.BuildConfig
 import com.aryanrogye.movies_shared.data.Favorite
 import com.aryanrogye.movies_shared.data.FavoritesRepository
+import com.aryanrogye.movies_shared.data.CollectionItem
+import com.aryanrogye.movies_shared.data.CollectionsRepository
 import com.aryanrogye.movies_shared.data.HistoryRepository
+import com.aryanrogye.movies_shared.data.MovieCollection
 import com.aryanrogye.movies_shared.data.WatchHistory
 import kotlinx.coroutines.CancellationException
 import com.aryanrogye.movies_shared.models.KTMediaType
@@ -33,28 +36,41 @@ fun DiscoverySection.matches(filter: LibraryFilter): Boolean = when (filter) {
 sealed interface AppDestination {
     data class Main(val tab: MainTab) : AppDestination
     data class Detail(val result: KTSearchResult, val history: WatchHistory? = null) : AppDestination
+    data class CollectionDetail(val id: String) : AppDestination
 }
 
 class MoviesAppState(context: Context) {
     private val tmdb = TMDBClient()
     private val favoritesRepository = FavoritesRepository(context)
     private val historyRepository = HistoryRepository(context)
+    private val collectionsRepository = CollectionsRepository(context)
     private val token = BuildConfig.TMDB_API_READ_ACCESS_TOKEN.trim()
     private val preferences = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
     val favorites = mutableStateListOf<Favorite>().apply { addAll(favoritesRepository.load()) }
     val history = mutableStateListOf<WatchHistory>().apply { addAll(historyRepository.load()) }
+    val collections = mutableStateListOf<MovieCollection>().apply { addAll(collectionsRepository.load()) }
     var includeAdult by mutableStateOf(preferences.getBoolean("include_adult", false))
         private set
     var searchResults by mutableStateOf<List<KTSearchResult>>(emptyList())
         private set
     var destination by mutableStateOf<AppDestination>(AppDestination.Main(MainTab.HOME))
     private var returnTab = MainTab.HOME
+    private var returnCollectionId: String? = null
+    private var unlockedCollections by mutableStateOf<Set<String>>(emptySet())
     var libraryFilter by mutableStateOf(LibraryFilter.ALL)
-    var homeFilter by mutableStateOf(LibraryFilter.ALL)
+    var homeFilter by mutableStateOf(
+        LibraryFilter.entries.firstOrNull { it.name == preferences.getString("home_filter", null) } ?: LibraryFilter.ALL
+    )
+        private set
+    var expandedSections by mutableStateOf(
+        discoverySectionTitles.associateWith { preferences.getBoolean("expanded_$it", true) }
+    )
+        private set
     var searchQuery by mutableStateOf("")
+    var collectionResult by mutableStateOf<KTSearchResult?>(null)
     val discovery = mutableStateListOf<DiscoverySection>().apply {
-        addAll(listOf("Trending", "Now Playing Movies", "Popular TV Shows", "Popular Movies", "Top Rated TV Shows", "Top Rated Movies").map { DiscoverySection(it) })
+        addAll(discoverySectionTitles.map { DiscoverySection(it) })
     }
     private var loadingHome = false
     var displayServer by mutableStateOf(readDisplayServer())
@@ -93,7 +109,7 @@ class MoviesAppState(context: Context) {
                             shows.map { DiscoveryItem(KTSearchResult(it.id, KTMediaType.TV, name = it.name, posterPath = it.posterPath, overview = it.overview, firstAirDate = it.firstAirDate), it.backdropPath) }
                         }
                     }
-                    discovery[index] = section.copy(items = items, loading = false)
+                    discovery[index] = section.copy(items = items.distinctBy { it.result.mediaType to it.result.id }, loading = false)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (failure: Exception) {
@@ -115,6 +131,7 @@ class MoviesAppState(context: Context) {
     }
 
     suspend fun openFavorite(favorite: Favorite) {
+        returnCollectionId = null
         returnTab = (destination as? AppDestination.Main)?.tab ?: MainTab.HOME
         runBusy {
             val result = tmdb.search(favorite.name, tokenOrThrow(), includeAdult).results.firstOrNull {
@@ -125,9 +142,24 @@ class MoviesAppState(context: Context) {
         }
     }
 
+    suspend fun openCollectionItem(collectionId: String, item: CollectionItem) {
+        runBusy {
+            val result = tmdb.search(item.name, tokenOrThrow(), includeAdult).results.firstOrNull {
+                it.id == item.id && it.mediaType.rawValue == item.mediaType
+            }
+            if (result == null) error = "Could not find ${item.name} on TMDB."
+            else {
+                returnTab = MainTab.LIBRARY
+                returnCollectionId = collectionId
+                destination = AppDestination.Detail(result)
+            }
+        }
+    }
+
     suspend fun tvInfo(id: Int): KTTVShow? = runBusyResult { tmdb.infoOnTV(id, tokenOrThrow()) }
 
     suspend fun openHistory(item: WatchHistory) {
+        returnCollectionId = null
         runBusy {
             val type = if (item.season == null) KTMediaType.MOVIE else KTMediaType.TV
             val result = tmdb.search(item.name, tokenOrThrow(), includeAdult).results
@@ -157,24 +189,44 @@ class MoviesAppState(context: Context) {
         preferences.edit().putBoolean("include_adult", value).apply()
     }
 
+    fun updateHomeFilter(filter: LibraryFilter) {
+        homeFilter = filter
+        preferences.edit().putString("home_filter", filter.name).apply()
+    }
+
+    fun toggleSection(title: String) {
+        val expanded = !(expandedSections[title] ?: true)
+        expandedSections = expandedSections + (title to expanded)
+        preferences.edit().putBoolean("expanded_$title", expanded).apply()
+    }
+
     suspend fun seasonInfo(id: Int, season: Int): KTSeasonInfo? =
         runBusyResult { tmdb.seasonInfo(id, season, tokenOrThrow()) }
 
     fun selectTab(tab: MainTab) {
+        returnCollectionId = null
         destination = AppDestination.Main(tab)
     }
 
     fun openDetail(result: KTSearchResult) {
+        returnCollectionId = null
         returnTab = (destination as? AppDestination.Main)?.tab ?: MainTab.SEARCH
         destination = AppDestination.Detail(result)
     }
 
     fun backTo(tab: MainTab = returnTab) {
-        destination = AppDestination.Main(tab)
+        if (destination is AppDestination.CollectionDetail) {
+            unlockedCollections = unlockedCollections - (destination as AppDestination.CollectionDetail).id
+        }
+        val collectionId = returnCollectionId
+        returnCollectionId = null
+        destination = if (destination is AppDestination.Detail && tab == MainTab.LIBRARY && collectionId != null) {
+            AppDestination.CollectionDetail(collectionId)
+        } else AppDestination.Main(tab)
     }
 
     fun toggleFavorite(result: KTSearchResult) {
-        val existing = favorites.indexOfFirst { it.id == result.id }
+        val existing = favorites.indexOfFirst { it.id == result.id && it.mediaType == result.mediaType.rawValue }
         if (existing >= 0) favorites.removeAt(existing)
         else favorites.add(
             Favorite(
@@ -192,7 +244,46 @@ class MoviesAppState(context: Context) {
         favoritesRepository.save(favorites)
     }
 
-    fun isFavorite(id: Int): Boolean = favorites.any { it.id == id }
+    fun isFavorite(result: KTSearchResult): Boolean = favorites.any {
+        it.id == result.id && it.mediaType == result.mediaType.rawValue
+    }
+
+    fun createCollection(name: String, result: KTSearchResult? = null) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        collections.add(MovieCollection(name = trimmed, items = result?.let { listOf(it.collectionItem()) } ?: emptyList()))
+        saveCollections()
+    }
+
+    fun toggleCollectionItem(id: String, result: KTSearchResult) {
+        val collection = collections.firstOrNull { it.id == id } ?: return
+        val exists = collection.items.any { it.id == result.id && it.mediaType == result.mediaType.rawValue }
+        val items = if (exists) collection.items.filterNot { it.id == result.id && it.mediaType == result.mediaType.rawValue }
+                    else collection.items + result.collectionItem()
+        updateCollection(collection.copy(items = items))
+    }
+
+    fun updateCollection(collection: MovieCollection) {
+        val index = collections.indexOfFirst { it.id == collection.id }
+        if (index < 0) return
+        collections[index] = collection
+        saveCollections()
+    }
+
+    fun openCollection(id: String) { destination = AppDestination.CollectionDetail(id) }
+
+    fun isCollectionUnlocked(id: String): Boolean = id in unlockedCollections
+
+    fun unlockCollection(id: String) { unlockedCollections = unlockedCollections + id }
+
+    private fun saveCollections() = collectionsRepository.save(collections)
+
+    private fun KTSearchResult.collectionItem() = CollectionItem(
+        id = id,
+        name = name ?: title.orEmpty(),
+        mediaType = mediaType.rawValue,
+        posterPath = posterPath,
+    )
 
     fun updateDisplayServer(server: KTDisplayServer) {
         displayServer = server
@@ -247,5 +338,8 @@ class MoviesAppState(context: Context) {
 
     private companion object {
         const val DISPLAY_SERVER = "display_server"
+        val discoverySectionTitles = listOf(
+            "Trending", "Now Playing Movies", "Popular TV Shows", "Popular Movies", "Top Rated TV Shows", "Top Rated Movies"
+        )
     }
 }

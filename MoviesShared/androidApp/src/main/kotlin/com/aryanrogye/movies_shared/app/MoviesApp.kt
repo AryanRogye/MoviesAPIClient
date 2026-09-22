@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
@@ -68,7 +67,6 @@ import coil3.compose.AsyncImage
 import com.aryanrogye.movies_shared.app.components.ExpandableText
 import com.aryanrogye.movies_shared.data.Favorite
 import com.aryanrogye.movies_shared.data.WatchHistory
-import android.text.format.DateUtils
 import com.aryanrogye.movies_shared.models.KTEpisode
 import com.aryanrogye.movies_shared.models.KTMediaType
 import com.aryanrogye.movies_shared.models.KTSearchResult
@@ -78,6 +76,7 @@ import com.aryanrogye.movies_shared.web.AndroidBlockingService
 import com.aryanrogye.movies_shared.web.BlockingStatus
 import com.aryanrogye.movies_shared.web.MediaWebView
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 private val AppColors = darkColorScheme(
     primary = Color(0xFFFFD54F),
@@ -98,6 +97,10 @@ fun MoviesApp() {
             when (val destination = appState.destination) {
                 is AppDestination.Main -> MainShell(appState, blockingService, destination.tab)
                 is AppDestination.Detail -> DetailScreen(appState, blockingService, destination.result, destination.history)
+                is AppDestination.CollectionDetail -> CollectionDetailScreen(appState, destination.id)
+            }
+            appState.collectionResult?.let { result ->
+                CollectionPickerDialog(appState, result) { appState.collectionResult = null }
             }
             appState.error?.let { message ->
                 AlertDialog(
@@ -151,12 +154,17 @@ private fun HomeScreen(appState: MoviesAppState) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             ScreenTitle("Home")
             Spacer(Modifier.weight(1f))
-            FilterButtons(appState.homeFilter) { appState.homeFilter = it }
+            FilterButtons(appState.homeFilter, appState::updateHomeFilter)
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(appState.discovery.filter { it.matches(appState.homeFilter) }, key = { it.title }) { section ->
                 Column {
-                    Text(section.title, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp, bottom = 12.dp))
+                    val expanded = appState.expandedSections[section.title] ?: true
+                    FocusButton(
+                        "${if (expanded) "⌄" else "›"}  ${if (section.title == "Trending") "Trending Today" else section.title}",
+                        selected = expanded,
+                        modifier = Modifier.padding(top = 12.dp, bottom = 8.dp),
+                    ) { appState.toggleSection(section.title) }
                     val visible = section.items.filter { item ->
                         (appState.includeAdult || !item.adult) &&
                             (section.title != "Trending" || when (appState.homeFilter) {
@@ -165,7 +173,7 @@ private fun HomeScreen(appState: MoviesAppState) {
                                 LibraryFilter.MOVIES -> item.result.mediaType == KTMediaType.MOVIE
                             })
                     }
-                    when {
+                    if (expanded) when {
                         section.loading -> Box(Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
                         section.error != null -> Column {
                             Text(section.error, color = Color.White.copy(alpha = .65f))
@@ -209,6 +217,7 @@ private fun FilterButtons(selected: LibraryFilter, onSelect: (LibraryFilter) -> 
 @Composable
 private fun LibraryScreen(appState: MoviesAppState) {
     val scope = rememberCoroutineScope()
+    var createCollection by remember { mutableStateOf(false) }
     val favorites = appState.favorites.filter {
         when (appState.libraryFilter) {
             LibraryFilter.ALL -> true
@@ -216,30 +225,53 @@ private fun LibraryScreen(appState: MoviesAppState) {
             LibraryFilter.MOVIES -> it.mediaType == "movie"
         }
     }
+    if (createCollection) CollectionNameDialog(
+        onDismiss = { createCollection = false },
+        onCreate = { appState.createCollection(it); createCollection = false },
+    )
     Column(Modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             ScreenTitle("Library")
             Spacer(Modifier.weight(1f))
+            FocusButton("+  New Collection", modifier = Modifier.padding(end = 16.dp)) { createCollection = true }
             FilterButtons(appState.libraryFilter) { appState.libraryFilter = it }
         }
-        Spacer(Modifier.height(18.dp))
-        if (appState.favorites.isEmpty()) {
-            EmptyMessage("No Favorites Yet", "Movies and shows you favorite will show up here.")
-        } else if (favorites.isEmpty()) {
-            EmptyMessage("Nothing in this filter", "Try All or another media type.")
-        } else {
-            Text("Favorites", fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(150.dp),
-                horizontalArrangement = Arrangement.spacedBy(18.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
-            ) {
-                items(favorites, key = { it.id }) { favorite ->
-                    FavoriteCard(
-                        favorite = favorite,
-                        onOpen = { scope.launch { appState.openFavorite(favorite) } },
-                        onRemove = { appState.removeFavorite(favorite) },
-                    )
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            item {
+                Column {
+                    Text("Favorites", fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 18.dp, bottom = 12.dp))
+                    if (favorites.isEmpty()) {
+                        Text(
+                            if (appState.favorites.isEmpty()) "Movies and shows you favorite will show up here." else "Nothing in this filter.",
+                            color = Color.White.copy(alpha = .6f),
+                        )
+                    } else {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            items(favorites, key = { "${it.mediaType}:${it.id}" }) { favorite ->
+                                Box(Modifier.width(150.dp)) {
+                                    FavoriteCard(
+                                        favorite = favorite,
+                                        onOpen = { scope.launch { appState.openFavorite(favorite) } },
+                                        onRemove = { appState.removeFavorite(favorite) },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            item {
+                Column {
+                    Text("Collections", fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
+                    if (appState.collections.isEmpty()) {
+                        Text("Create a collection to organize movies and shows.", color = Color.White.copy(alpha = .6f))
+                    } else {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            items(appState.collections, key = { it.id }) { collection ->
+                                CollectionCard(collection) { appState.openCollection(collection.id) }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -301,12 +333,13 @@ private fun SearchScreen(appState: MoviesAppState) {
             EmptyMessage("Search", "Find movies, TV shows, and people.")
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(appState.searchResults, key = { it.id }) { result ->
+                items(appState.searchResults, key = { "${it.mediaType.rawValue}:${it.id}" }) { result ->
                     SearchResultRow(
                         result,
-                        favorite = appState.isFavorite(result.id),
+                        favorite = appState.isFavorite(result),
                         onOpen = { appState.openDetail(result) },
                         onFavorite = { appState.toggleFavorite(result) },
+                        onCollection = { appState.collectionResult = result },
                     )
                 }
             }
@@ -318,6 +351,10 @@ private fun SearchScreen(appState: MoviesAppState) {
 private fun HistoryScreen(appState: MoviesAppState) {
     val scope = rememberCoroutineScope()
     var resolving by remember { mutableStateOf<String?>(null) }
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) { delay(1_000); now = System.currentTimeMillis() }
+    }
     Column(Modifier.fillMaxSize()) {
         ScreenTitle("History")
         Spacer(Modifier.height(16.dp))
@@ -338,7 +375,7 @@ private fun HistoryScreen(appState: MoviesAppState) {
                                 Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
                                     Text(item.name, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     val media = if (item.season != null) "S${item.season} E${item.episode}" else "Movie"
-                                    Text("$media · ${DateUtils.getRelativeTimeSpanString(item.watchedAt)}", color = Color.White.copy(alpha = .6f))
+                                    Text("$media · ${relativeTime(item.watchedAt, now)}", color = Color.White.copy(alpha = .6f))
                                 }
                                 Text(if (resolving == item.key) "Loading…" else "›")
                             }
@@ -411,7 +448,7 @@ private fun FavoriteCard(favorite: Favorite, onOpen: () -> Unit, onRemove: () ->
 }
 
 @Composable
-private fun SearchResultRow(result: KTSearchResult, favorite: Boolean, onOpen: () -> Unit, onFavorite: () -> Unit) {
+private fun SearchResultRow(result: KTSearchResult, favorite: Boolean, onOpen: () -> Unit, onFavorite: () -> Unit, onCollection: () -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
       FocusSurface(onClick = onOpen, modifier = Modifier.weight(1f)) {
         Row(Modifier.height(142.dp).padding(8.dp)) {
@@ -434,6 +471,8 @@ private fun SearchResultRow(result: KTSearchResult, favorite: Boolean, onOpen: (
       Spacer(Modifier.width(12.dp))
       SmallAction(if (favorite) "★" else "☆", onFavorite,
           if (favorite) "Remove from favorites" else "Add to favorites")
+      Spacer(Modifier.width(8.dp))
+      if (result.mediaType != KTMediaType.PERSON) SmallAction("▤", onCollection, "Add to collection")
     }
 }
 
@@ -441,7 +480,7 @@ private fun SearchResultRow(result: KTSearchResult, favorite: Boolean, onOpen: (
 private fun DetailScreen(appState: MoviesAppState, blocker: AndroidBlockingService, result: KTSearchResult, history: WatchHistory?) {
     BackHandler { appState.backTo() }
     Column(Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 20.dp)) {
-        DetailToolbar(appState, onBack = { appState.backTo() })
+        DetailToolbar(appState, result, onBack = { appState.backTo() })
         Spacer(Modifier.height(14.dp))
         when (result.mediaType) {
             KTMediaType.MOVIE -> MovieDetail(appState, blocker, result)
@@ -452,9 +491,19 @@ private fun DetailScreen(appState: MoviesAppState, blocker: AndroidBlockingServi
 }
 
 @Composable
-private fun DetailToolbar(appState: MoviesAppState, onBack: () -> Unit) {
+private fun DetailToolbar(appState: MoviesAppState, result: KTSearchResult, onBack: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         FocusButton("‹  Back", onClick = onBack)
+        if (result.mediaType != KTMediaType.PERSON) {
+            FocusButton(
+                if (appState.isFavorite(result)) "★  Favorited" else "☆  Favorite",
+                selected = appState.isFavorite(result),
+                modifier = Modifier.padding(start = 10.dp),
+            ) { appState.toggleFavorite(result) }
+            FocusButton("▤  Collections", modifier = Modifier.padding(start = 10.dp)) {
+                appState.collectionResult = result
+            }
+        }
         Spacer(Modifier.weight(1f))
         Text("Server", color = Color.White.copy(alpha = .55f), modifier = Modifier.padding(end = 8.dp))
         KTDisplayServer.entries.forEach { server ->
@@ -652,7 +701,7 @@ private fun Hero(result: KTSearchResult, backdropPath: String? = null, playLabel
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .2f), Color.Black))))
         Column(Modifier.align(Alignment.BottomStart).fillMaxWidth(.72f).padding(30.dp)) {
             Text(result.displayName(), fontSize = 42.sp, lineHeight = 48.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(result.overview.orEmpty(), maxLines = 3, overflow = TextOverflow.Ellipsis, color = Color.White.copy(alpha = .78f), lineHeight = 22.sp, modifier = Modifier.padding(vertical = 12.dp))
+            ExpandableText(result.overview.orEmpty(), collapsedLines = 3, modifier = Modifier.padding(vertical = 12.dp))
             playLabel?.let { FocusButton(it, onClick = onPlay) }
         }
     }
@@ -669,7 +718,7 @@ private fun Poster(path: String?, description: String, modifier: Modifier) {
 }
 
 @Composable
-private fun FocusSurface(modifier: Modifier = Modifier, onClick: () -> Unit, content: @Composable () -> Unit) {
+internal fun FocusSurface(modifier: Modifier = Modifier, onClick: () -> Unit, content: @Composable () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     val borderColor by animateColorAsState(if (focused) MaterialTheme.colorScheme.primary else Color.Transparent, label = "focus border")
     Surface(
@@ -681,15 +730,19 @@ private fun FocusSurface(modifier: Modifier = Modifier, onClick: () -> Unit, con
 }
 
 @Composable
-private fun FocusButton(label: String, modifier: Modifier = Modifier, selected: Boolean = false, onClick: () -> Unit) {
+internal fun FocusButton(label: String, modifier: Modifier = Modifier, selected: Boolean = false, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     val background by animateColorAsState(
-        when { focused -> Color.White; selected -> Color.White.copy(alpha = .2f); else -> Color.White.copy(alpha = .07f) },
+        when { focused -> Color.White; selected -> MaterialTheme.colorScheme.primary.copy(alpha = .24f); else -> Color.White.copy(alpha = .07f) },
         label = "button background",
     )
     val foreground = if (focused) Color.Black else Color.White
     Surface(
-        modifier = modifier.onFocusChanged { focused = it.isFocused }.clip(RoundedCornerShape(50)).clickable(onClick = onClick),
+        modifier = modifier.onFocusChanged { focused = it.isFocused }.border(
+            if (selected && !focused) 1.dp else 0.dp,
+            if (selected && !focused) MaterialTheme.colorScheme.primary.copy(alpha = .7f) else Color.Transparent,
+            RoundedCornerShape(50),
+        ).clip(RoundedCornerShape(50)).clickable(onClick = onClick),
         color = background,
         contentColor = foreground,
         shape = RoundedCornerShape(50),
@@ -708,10 +761,10 @@ private fun SmallAction(symbol: String, onClick: () -> Unit, label: String = sym
 }
 
 @Composable
-private fun ScreenTitle(text: String) = Text(text, fontSize = 34.sp, fontWeight = FontWeight.Bold)
+internal fun ScreenTitle(text: String) = Text(text, fontSize = 34.sp, fontWeight = FontWeight.Bold)
 
 @Composable
-private fun EmptyMessage(title: String, detail: String) {
+internal fun EmptyMessage(title: String, detail: String) {
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Text(title, fontSize = 26.sp, fontWeight = FontWeight.Bold)
         Text(detail, color = Color.White.copy(alpha = .58f), modifier = Modifier.padding(top = 8.dp))
@@ -725,3 +778,13 @@ private fun KTSearchResult.mediaLabel(): String = when (mediaType) {
     KTMediaType.PERSON -> "Person"
 }
 private fun imageUrl(path: String?): String? = path?.let { "https://image.tmdb.org/t/p/w500$it" }
+
+private fun relativeTime(watchedAt: Long, now: Long): String {
+    val seconds = ((now - watchedAt) / 1_000).coerceAtLeast(0)
+    return when {
+        seconds < 60 -> "${seconds}s ago"
+        seconds < 3_600 -> "${seconds / 60}m ago"
+        seconds < 86_400 -> "${seconds / 3_600}h ago"
+        else -> "${seconds / 86_400}d ago"
+    }
+}
