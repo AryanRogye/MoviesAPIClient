@@ -21,7 +21,13 @@ typedef struct {
 
 uint64_t getMemoryForProcess(pid_t pid);
 uint64_t getCPUTimeForProcess(pid_t pid);
-ProcessThreadInfo getCPUInfo(pid_t pid);
+
+int getCPUInfo(pid_t pid, ProcessThreadInfo *threadInfo);
+int get_process_start_time(pid_t pid, struct timeval *start_tv);
+
+int freeze_process(pid_t pid);
+int resume_process(pid_t pid);
+
 
 #endif
 #endif

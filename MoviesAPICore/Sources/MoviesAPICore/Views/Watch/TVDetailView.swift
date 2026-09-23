@@ -68,12 +68,14 @@ public struct TVDetailView: View {
     @State private var collectionName: String = ""
     @State private var collectionResultToAdd: KTSearchResult?
 
+    @State var webviewModel: EmbeddedMovieViewModel = .init()
+
     public var body: some View {
         GeometryReader { geometry in
             ScrollView {
                 if let tvUrl {
 #if os(iOS)
-                    EmbeddedMovieView(url: tvUrl) { timeInfo in
+                    EmbeddedMovieView(url: tvUrl, vm: webviewModel) { timeInfo in
                         self.timeInfo = timeInfo
 
                         if waitingForAutoPlayLoad,
@@ -89,7 +91,7 @@ public struct TVDetailView: View {
                     .frame(height: 200)
                     .padding(.horizontal, 10)
 #elseif os(macOS)
-                    EmbeddedMovieView(url: tvUrl) { timeInfo in
+                    EmbeddedMovieView(url: tvUrl, vm: webviewModel) { timeInfo in
                         self.timeInfo = timeInfo
 
                         if waitingForAutoPlayLoad,
@@ -170,6 +172,8 @@ public struct TVDetailView: View {
             ToolbarItemGroup(placement: .primaryAction) {
                 Menu {
 #if os(macOS)
+                    Button("Freeze Proccess") { webviewModel.freezeProcess() }
+                    Button("UnFreeze Proccess") { webviewModel.unfreezeProcess() }
                     Button {
                         hideSeasonsAndEpisodes.toggle()
                     } label: {

@@ -41,6 +41,8 @@ public struct MovieDetailView: View {
     @State private var collectionName: String = ""
     @State private var collectionResultToAdd: KTSearchResult?
 
+    @State var webviewModel: EmbeddedMovieViewModel = .init()
+
     private var titleLineLimit: Int {
         if let title = result.title {
             title.count <= 25 ? 1 : 2
@@ -84,7 +86,7 @@ public struct MovieDetailView: View {
             if let movieUrl {
 #if os(iOS)
                 GeometryReader { proxy in
-                    EmbeddedMovieView(url: movieUrl)
+                    EmbeddedMovieView(url: movieUrl, vm: webviewModel)
                         .id(reloadID)
                         .frame(maxWidth: .infinity)
                         .frame(height: 200)
@@ -92,7 +94,7 @@ public struct MovieDetailView: View {
                 }
                 .frame(height: 200)
 #elseif os(macOS)
-                EmbeddedMovieView(url: movieUrl)
+                EmbeddedMovieView(url: movieUrl, vm: webviewModel)
                     .id(reloadID)
                     .frame(
                         maxWidth: .infinity,
@@ -180,6 +182,10 @@ public struct MovieDetailView: View {
             ToolbarItemGroup(placement: .primaryAction) {
 
                 Menu {
+#if os(macOS)
+                    Button("Freeze Proccess") { webviewModel.freezeProcess() }
+                    Button("UnFreeze Proccess") { webviewModel.unfreezeProcess() }
+#endif
                     CollectionFavoriteMenu(
                         result: result,
                         showCreateCollection: $showCreateCollection,

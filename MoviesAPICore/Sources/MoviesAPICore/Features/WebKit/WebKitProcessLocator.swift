@@ -1,5 +1,5 @@
 //
-//  WebKitMemory.swift
+//  WebKitProcessLocator.swift
 //  MoviesAPICore
 //
 //  Created by Aryan Rogye on 9/22/26.
@@ -9,7 +9,7 @@ import ObjectiveC.runtime
 import WebKit
 import Darwin
 
-final class WebKitMemory {
+enum WebKitProcessLocator {
 
     /// https://github.com/WebKit/WebKit/blob/286a99d1fd350792a2c1b6d18364ca5ce48f589b/Source/WebKit/UIProcess/API/Cocoa/WKWebView.mm#L5556-L5562
     /**
@@ -28,7 +28,7 @@ final class WebKitMemory {
         Selector
     ) -> pid_t
 
-    func webProcessIdentifier(for webView: WKWebView) -> pid_t? {
+    static func webProcessIdentifier(for webView: WKWebView) -> pid_t? {
         let selector = NSSelectorFromString("_webProcessIdentifier")
 
         /// checks to see whether WKWebview implements or inherits `_webProcessIdentifier`
@@ -53,14 +53,6 @@ final class WebKitMemory {
         }
         return pid
     }
-
-    private func stringForErrno() -> String {
-        if let errorCStr = strerror(errno) {
-            return String(cString: errorCStr)
-        }
-        return "Unknown error (\(errno))"
-    }
-
 }
 
 //proofreadingSession:didReceiveSuggestions:processedRange:inContext:finished:

@@ -17,6 +17,12 @@ final class EmbeddedMovieViewModel {
     var estimatedProgress: Double = 0
     var isLoading: Bool = false
 
+    @ObservationIgnored
+    var freezeProcess: () -> Void = {}
+
+    @ObservationIgnored
+    var unfreezeProcess: () -> Void = {}
+
     func handleLoadFailure(_ error: Error) {
         let error = error as NSError
         if error.domain == NSURLErrorDomain,
@@ -39,8 +45,10 @@ struct EmbeddedMovieView: View {
 
     @Environment(PlaybackSession.self) var playbackSession
     @Environment(BlockingService.self) var blockingService
-    @State var vm: EmbeddedMovieViewModel = .init()
+
     let url: URL
+    @Bindable var vm: EmbeddedMovieViewModel
+
     var onTimeInfo: (TimeInfo) -> Void = { _ in }
     var iFrameLogs: (String) -> Void = { _ in }
     var navigationLogs: (String) -> Void = { _ in }
@@ -53,7 +61,7 @@ struct EmbeddedMovieView: View {
             url: url,
             onTimeInfo: onTimeInfo,
             iFrameLogs: iFrameLogs,
-            navigationLogs: navigationLogs
+            navigationLogs: navigationLogs,
         )
         .overlay(alignment: .topLeading) {
             loadingProgress
@@ -184,12 +192,11 @@ struct WebView: Representable {
         private var kvoTokens: [NSKeyValueObservation] = []
 
 #if os(macOS)
-        let memory = WebKitMemory()
-        var memoryMonitor: Task<Void, Never>?
+        var perfMonitor: Task<Void, Never>?
 
         deinit {
-            memoryMonitor?.cancel()
-            memoryMonitor = nil
+            perfMonitor?.cancel()
+            perfMonitor = nil
         }
 #endif
 
@@ -213,6 +220,19 @@ struct WebView: Representable {
             startObservation(with: webView)
             attachWatcher(to: webView)
             beginMonitoringPID()
+
+            vm.freezeProcess = { [weak self] in
+                guard let self else { return }
+                guard let pid else { return }
+                freeze_process(pid)
+            }
+
+            vm.unfreezeProcess = { [weak self] in
+                guard let self else { return }
+                guard let pid else { return }
+                resume_process(pid)
+                webView.layer?.setNeedsLayout()
+            }
         }
     }
 }
@@ -252,6 +272,7 @@ extension WebView.Coordinator {
         Task { @MainActor in
             vm.showError = false
             loadPID(for: webView)
+            loadStartTimeForPID()
         }
     }
 
@@ -282,18 +303,33 @@ extension WebView.Coordinator {
 
     private func loadPID(for webView: WKWebView) {
 #if os(macOS)
-        self.pid = memory.webProcessIdentifier(for: webView)
+        self.pid = WebKitProcessLocator.webProcessIdentifier(for: webView)
 #endif
+    }
+
+    private func loadStartTimeForPID() {
+        guard let pid else { return }
+        var start_time: timeval = .init();
+        get_process_start_time(pid, &start_time);
+
+        let seconds = TimeInterval(start_time.tv_sec)
+        let microseconds = TimeInterval(start_time.tv_usec) / 1_000_000
+        let startDate = Date(timeIntervalSince1970: seconds + microseconds)
+
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .medium
+        print("Start Time: \(formatter.string(from: startDate))")
     }
 
     private func beginMonitoringPID() {
 #if os(macOS)
-        memoryMonitor?.cancel()
+        perfMonitor?.cancel()
 
         var lastCPUTime: UInt64 = 0
+        var lastPidChecked: pid_t? = nil
 
-
-        memoryMonitor = Task.detached(priority: .background) { [weak self] in
+        perfMonitor = Task.detached(priority: .background) { [weak self] in
 
             func getMemory(for pid: pid_t) -> Double {
                 let mem = getMemoryForProcess(pid)
@@ -302,9 +338,25 @@ extension WebView.Coordinator {
             }
 
             func getCPUUsage(for pid: pid_t) -> (Int32, Double) {
-                let processThreadInfo = getCPUInfo(pid)
+
+                if lastPidChecked != pid {
+                    lastPidChecked = pid
+                    lastCPUTime = 0
+                }
+
+                var processThreadInfo: ProcessThreadInfo = .init()
+                let result = getCPUInfo(pid, &processThreadInfo)
+                if result == -1 {
+                    return (0, 0)
+                }
 
                 let cpuTime = processThreadInfo.cpuTime
+
+                guard cpuTime >= lastCPUTime else {
+                    lastCPUTime = cpuTime
+                    return (processThreadInfo.count, 0.0)
+                }
+
                 if lastCPUTime != 0 {
                     let delta = cpuTime - lastCPUTime
                     let cpuSeconds = Double(delta) / 1_000_000_000

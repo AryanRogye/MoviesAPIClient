@@ -1,5 +1,5 @@
 //
-//  MemoryUsage.c
+//  ProcessInfo.c
 //  MoviesAPICore
 //
 //  Created by Aryan Rogye on 9/22/26.
@@ -11,6 +11,8 @@
 
 #include "ProccesInfo.h"
 #include <stdlib.h>
+#include <signal.h>
+#include <sys/types.h>
 
 /// Function returns memory for a given pid
 uint64_t getMemoryForProcess(pid_t pid) {
@@ -31,7 +33,7 @@ uint64_t getMemoryForProcess(pid_t pid) {
 }
 
 /// Function returns a threadcount and a cpu time
-ProcessThreadInfo getCPUInfo(pid_t pid) {
+int getCPUInfo(pid_t pid, ProcessThreadInfo *threadInfo) {
     uint64_t thread_ids[1024];
     int bytes = proc_pidinfo(
                              pid,
@@ -42,8 +44,7 @@ ProcessThreadInfo getCPUInfo(pid_t pid) {
                              );
 
     if (bytes <= 0) {
-        ProcessThreadInfo result = {0};
-        return result;
+        return -1;
     }
 
     int count = bytes / sizeof(uint64_t);
@@ -73,10 +74,39 @@ ProcessThreadInfo getCPUInfo(pid_t pid) {
 
     info.cpuTime = total_cpu_time;
 
-    return info;
+    threadInfo->count = info.count;
+    threadInfo->cpuTime = info.cpuTime;
+    return 0;
 }
 
-/// Function returns just the cpu time
+int get_process_start_time(pid_t pid, struct timeval *start_tv) {
+    struct proc_bsdinfo info;
+    int ret = proc_pidinfo(
+                           pid,
+                           PROC_PIDTBSDINFO,
+                           0,
+                           &info,
+                           sizeof(info)
+                           );
+
+    if (ret != sizeof(info)) {
+        return -1; // failed, or PID doesn't exist / no permission
+    }
+
+    start_tv->tv_sec  = (time_t)info.pbi_start_tvsec;
+    start_tv->tv_usec = (suseconds_t)info.pbi_start_tvusec;
+    return 0;
+}
+
+int freeze_process(pid_t pid) {
+    return kill(pid, SIGSTOP);
+}
+
+int resume_process(pid_t pid) {
+    return kill(pid, SIGCONT);
+}
+
+/// (Unused But Kept) Function returns just the cpu time
 uint64_t getCPUTimeForProcess(pid_t pid) {
     uint64_t thread_ids[1024];
     int bytes = proc_pidinfo(
