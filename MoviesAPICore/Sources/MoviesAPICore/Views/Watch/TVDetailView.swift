@@ -749,6 +749,7 @@ private struct EpisodesView: View {
 }
 
 
+#if os(macOS)
 @MainActor
 private final class TVDetailMenubarController: NSObject {
 
@@ -852,6 +853,7 @@ private final class TVDetailMenubarController: NSObject {
         self.debugMenuItem = nil
     }
 }
+#endif
 
 #if DEBUG
 #Preview {

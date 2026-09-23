@@ -479,7 +479,9 @@ extension WebView.Coordinator {
         // before SwiftUI dismantles the old one. Only its current owner may
         // remove delegates, message handlers, or the active video styling.
         guard view.navigationDelegate === coordinator else { return }
+#if os(macOS)
         coordinator.perfMonitor?.cancel()
+#endif
         view.stopLoading()
         view.loadHTMLString("", baseURL: nil)
         view.navigationDelegate = nil
