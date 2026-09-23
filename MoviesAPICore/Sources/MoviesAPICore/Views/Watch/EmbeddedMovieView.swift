@@ -17,11 +17,13 @@ final class EmbeddedMovieViewModel {
     var estimatedProgress: Double = 0
     var isLoading: Bool = false
 
+#if os(macOS)
     @ObservationIgnored
     var freezeProcess: () -> Void = {}
 
     @ObservationIgnored
     var unfreezeProcess: () -> Void = {}
+#endif
 
     func handleLoadFailure(_ error: Error) {
         let error = error as NSError
@@ -221,6 +223,7 @@ struct WebView: Representable {
             attachWatcher(to: webView)
             beginMonitoringPID()
 
+#if os(macOS)
             vm.freezeProcess = { [weak self] in
                 guard let self else { return }
                 guard let pid else { return }
@@ -233,6 +236,7 @@ struct WebView: Representable {
                 resume_process(pid)
                 webView.layer?.setNeedsLayout()
             }
+#endif
         }
     }
 }
@@ -308,6 +312,7 @@ extension WebView.Coordinator {
     }
 
     private func loadStartTimeForPID() {
+#if os(macOS)
         guard let pid else { return }
         var start_time: timeval = .init();
         get_process_start_time(pid, &start_time);
@@ -320,6 +325,7 @@ extension WebView.Coordinator {
         formatter.dateStyle = .medium
         formatter.timeStyle = .medium
         print("Start Time: \(formatter.string(from: startDate))")
+#endif
     }
 
     private func beginMonitoringPID() {

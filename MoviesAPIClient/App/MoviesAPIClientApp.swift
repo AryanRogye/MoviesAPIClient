@@ -11,7 +11,7 @@ import MoviesAPICore
 
 @main
 struct MoviesAPIClientApp: App {
-    #if os(iOS)
+#if os(iOS)
     private let modelContainer: ModelContainer = {
         do {
             let schema = Schema(versionedSchema: MoviesSchemaV2.self)
@@ -20,11 +20,11 @@ struct MoviesAPIClientApp: App {
             fatalError("Could not create model container: \(error)")
         }
     }()
-    #endif
+#endif
 
-    #if os(macOS)
+#if os(macOS)
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    #endif
+#endif
 
     var body: some Scene {
 #if os(iOS)

@@ -53,5 +53,10 @@ public struct SettingsView: View {
             ToolbarSpacer(.flexible)
 #endif
         }
+        .formStyle(.grouped)
+#if os(macOS)
+        .scrollContentBackground(.hidden)
+        .background(.clear)
+#endif
     }
 }
