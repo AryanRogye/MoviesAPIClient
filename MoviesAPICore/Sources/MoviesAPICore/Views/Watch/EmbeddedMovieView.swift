@@ -53,6 +53,7 @@ struct EmbeddedMovieView: View {
 
     var onTimeInfo: (TimeInfo) -> Void = { _ in }
     var iFrameLogs: (String) -> Void = { _ in }
+    var videoFrameLogs: (String) -> Void = { _ in }
     var navigationLogs: (String) -> Void = { _ in }
 
     var body: some View {
@@ -63,6 +64,7 @@ struct EmbeddedMovieView: View {
             url: url,
             onTimeInfo: onTimeInfo,
             iFrameLogs: iFrameLogs,
+            videoFrameLogs: videoFrameLogs,
             navigationLogs: navigationLogs,
         )
         .overlay(alignment: .topLeading) {
@@ -111,6 +113,7 @@ struct WebView: Representable {
     let url: URL
     let onTimeInfo: (TimeInfo) -> Void
     let iFrameLogs: (String) -> Void
+    let videoFrameLogs: (String) -> Void
     let navigationLogs: (String) -> Void
 
 #if os(iOS)
@@ -176,6 +179,7 @@ struct WebView: Representable {
             vm: vm,
             onTimeInfo: onTimeInfo,
             iFrameLogs: iFrameLogs,
+            videoFrameLogs: videoFrameLogs,
             navigationLogs: navigationLogs
         )
     }
@@ -188,6 +192,7 @@ struct WebView: Representable {
         private var vm: EmbeddedMovieViewModel
         let onTimeInfo: (TimeInfo) -> Void
         let iFrameLogs: (String) -> Void
+        let videoFrameLogs: (String) -> Void
         let navigationLogs: (String) -> Void
         var pid: pid_t?
 
@@ -206,11 +211,13 @@ struct WebView: Representable {
             vm: EmbeddedMovieViewModel,
             onTimeInfo: @escaping (TimeInfo) -> Void,
             iFrameLogs: @escaping (String) -> Void,
+            videoFrameLogs: @escaping (String) -> Void,
             navigationLogs: @escaping (String) -> Void
         ) {
             self.vm = vm
             self.onTimeInfo = onTimeInfo
             self.iFrameLogs = iFrameLogs
+            self.videoFrameLogs = videoFrameLogs
             self.navigationLogs = navigationLogs
             super.init()
         }
@@ -439,6 +446,7 @@ extension WebView.Coordinator {
 
         view.configuration.userContentController.removeScriptMessageHandler(forName: "iframeDebug")
         view.configuration.userContentController.removeScriptMessageHandler(forName: "iframeLog")
+        view.configuration.userContentController.removeScriptMessageHandler(forName: "videoLogger")
     }
 }
 
@@ -489,6 +497,28 @@ extension WebView.Coordinator: WKScriptMessageHandler {
         webView.configuration.userContentController.addUserScript(loggerScript)
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "iframeLog")
         webView.configuration.userContentController.add(self, name: "iframeLog")
+
+        guard let videoLoggerUrl = Bundle.module.url(
+            forResource: "VideoLogger",
+            withExtension: "js"
+        ) else {
+            print("Couldnt Find VideoLogger.js")
+            return
+        }
+        guard let videoLoggerText = try? String(contentsOf: videoLoggerUrl, encoding: .utf8) else {
+            print("Couldnt convert VideoLogger.js to text")
+            return
+        }
+
+        let videoLoggerScript = WKUserScript(
+            source: videoLoggerText,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: false
+        )
+
+        webView.configuration.userContentController.addUserScript(videoLoggerScript)
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoLogger")
+        webView.configuration.userContentController.add(self, name: "videoLogger")
     }
 
     func userContentController(
@@ -496,6 +526,21 @@ extension WebView.Coordinator: WKScriptMessageHandler {
         didReceive message: WKScriptMessage
     ) {
         switch message.name {
+        case "videoLogger":
+            guard let dictionary = message.body as? [String: Any] else {
+                print("Couldnt convert message body into dictionary")
+                return
+            }
+            guard let jsonData = try? JSONSerialization.data(withJSONObject: dictionary) else {
+                print("Coudlnt convert dictionary into json data")
+                return
+            }
+
+            if let string = prettyPrintJSON(jsonData) {
+                videoFrameLogs(string)
+            }
+
+            break
         case "iframeLog":
             guard let dictionary = message.body as? [String: Any] else {
                 print("Couldnt convert message body into dictionary")

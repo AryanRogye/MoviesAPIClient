@@ -63,6 +63,7 @@ public struct TVDetailView: View {
     @State private var waitingForAutoPlayLoad = false
 
     @State private var iFrameLogs: [String] = []
+    @State private var videoFrameLogs: [String] = []
 
     @State private var showCreateCollection: Bool = false
     @State private var collectionName: String = ""
@@ -87,6 +88,8 @@ public struct TVDetailView: View {
                         }
                     } iFrameLogs: { log in
                         addLog(log)
+                    } videoFrameLogs: { log in
+                        addVideoLog(log)
                     }
                     .id(reloadID)
                     .frame(maxWidth: .infinity)
@@ -103,6 +106,8 @@ public struct TVDetailView: View {
                         }
                     } iFrameLogs: { log in
                         addLog(log)
+                    } videoFrameLogs: { log in
+                        addVideoLog(log)
                     }
                     .id(reloadID)
                     .frame(maxWidth: .infinity)
@@ -181,8 +186,8 @@ public struct TVDetailView: View {
             ToolbarItemGroup(placement: .primaryAction) {
 #if DEBUG
                 if let timeInfo {
-                    Image(systemName: "checkmark")
-                        .tint(.yellow)
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.yellow)
                 }
 #endif
                 Menu {
@@ -200,7 +205,7 @@ public struct TVDetailView: View {
                     }
 #endif
                     NavigationLink {
-                        IFrameLogsView(logs: $iFrameLogs)
+                        IFrameLogsView(logs: $iFrameLogs, videoLogs: $videoFrameLogs)
                     } label: {
                         Text("Logs")
                     }
@@ -308,6 +313,14 @@ public struct TVDetailView: View {
                 self.error = error.localizedDescription
                 self.showError = true
             }
+        }
+    }
+
+    func addVideoLog(_ log: String) {
+        videoFrameLogs.append(log)
+
+        if videoFrameLogs.count > 200 {
+            videoFrameLogs.removeFirst(videoFrameLogs.count - 200)
         }
     }
 
@@ -437,62 +450,6 @@ public struct TVDetailView: View {
             } catch {
                 self.error = error.localizedDescription
                 self.showError = true
-            }
-        }
-    }
-}
-
-private struct IFrameLogsView: View {
-    @Binding var logs: [String]
-
-    @Environment(\.dismiss) var dismiss
-
-    var body: some View {
-        List {
-            if logs.isEmpty {
-                Text("No Logs Yet")
-            } else {
-                ForEach(
-                    Array(logs.reversed()).enumerated(),
-                    id: \.offset
-                ) { index, log in
-                    HStack(alignment: .top, spacing: 10) {
-                        Text("#\(logs.count - index)")
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                            .frame(minWidth: 35, alignment: .trailing)
-
-                        Text(log)
-                            .font(.callout.monospaced())
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .padding(.vertical, 3)
-                }
-            }
-        }
-        .navigationTitle("IFrame Logs")
-        .toolbar {
-            ToolbarItem(placement: .navigation) {
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "chevron.backward")
-                }
-            }
-
-#if os(macOS)
-            ToolbarSpacer(.flexible)
-#endif
-
-            ToolbarItem(placement: .primaryAction) {
-                Button(role: .destructive) {
-                    logs.removeAll()
-                } label: {
-                    Image(systemName: "trash")
-                }
-                .disabled(logs.isEmpty)
-                .help("Clear Logs")
             }
         }
     }

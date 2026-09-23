@@ -13,13 +13,13 @@ let package = Package(
         .library(
             name: "MoviesAPICore",
             targets: ["MoviesAPICore"]
-        ),
+        )
     ],
     dependencies: [
         .package(
             url: "https://github.com/sindresorhus/Defaults.git",
             from: "9.0.9"
-        ),
+        )
     ],
     targets: [
         .binaryTarget(
@@ -41,10 +41,11 @@ let package = Package(
                 .copy("Features/WebKit/NetworkFiltering/NetworkBlockingRules.json.license"),
                 .process("Features/WebKit/PopupFiltering/PopupFilters.json"),
                 .process("Views/Watch/monitorIFrame.js"),
-                .process("Views/Watch/IFrameLogger.js")
+                .process("Views/Watch/IFrameLogger.js"),
+                .process("Views/Watch/VideoLogger.js"),
             ],
             swiftSettings: [
-                .defaultIsolation(nil),
+                .defaultIsolation(nil)
             ],
         ),
     ],
