@@ -32,10 +32,17 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+@Observable
+@MainActor
+final class WindowCoordinatorContainer {
+    let windowCoordinator = WindowCoordinator()
+}
+
 @MainActor
 class AppCoordinator {
 
-    let windowCoordinator = WindowCoordinator()
+    let windowContainer = WindowCoordinatorContainer()
+
 
     private let modelContainer: ModelContainer = {
         do {
@@ -63,10 +70,10 @@ class AppCoordinator {
             size = .init(width: 500, height: 500)
         }
 
-        let window = windowCoordinator.showWindow(
+        let window = windowContainer.windowCoordinator.showWindow(
             id: appID,
             title: "MoviesAPIClient",
-            content: MacOSRoot()
+            content: MacOSRoot(windowContainer: windowContainer)
                 .modelContainer(modelContainer)
                 .preferredColorScheme(.dark),
             size: size,

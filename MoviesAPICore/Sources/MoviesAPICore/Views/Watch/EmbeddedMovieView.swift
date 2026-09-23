@@ -19,6 +19,15 @@ final class EmbeddedMovieViewModel {
 
 #if os(macOS)
     @ObservationIgnored
+    weak var webView: WKWebView?
+
+    func stopPlayback() {
+        webView?.stopLoading()
+        webView?.loadHTMLString("", baseURL: nil)
+        webView = nil
+    }
+
+    @ObservationIgnored
     var freezeProcess: () -> Void = {}
 
     @ObservationIgnored
@@ -55,6 +64,9 @@ struct EmbeddedMovieView: View {
     var iFrameLogs: (String) -> Void = { _ in }
     var videoFrameLogs: (String) -> Void = { _ in }
     var navigationLogs: (String) -> Void = { _ in }
+    var memoryInfo: (Double) -> Void = { _ in }
+    var cpuInfo: (Double) -> Void = { _ in }
+    var threadInfo: (Int32) -> Void = { _ in }
 
     var body: some View {
         WebView(
@@ -66,6 +78,9 @@ struct EmbeddedMovieView: View {
             iFrameLogs: iFrameLogs,
             videoFrameLogs: videoFrameLogs,
             navigationLogs: navigationLogs,
+            memoryInfo: memoryInfo,
+            cpuInfo: cpuInfo,
+            threadInfo: threadInfo
         )
         .overlay(alignment: .topLeading) {
             loadingProgress
@@ -115,6 +130,9 @@ struct WebView: Representable {
     let iFrameLogs: (String) -> Void
     let videoFrameLogs: (String) -> Void
     let navigationLogs: (String) -> Void
+    let memoryInfo: (Double) -> Void
+    let cpuInfo: (Double) -> Void
+    let threadInfo: (Int32) -> Void
 
 #if os(iOS)
     func makeUIView(context: Context) -> WKWebView {
@@ -167,8 +185,11 @@ struct WebView: Representable {
 
         blockingService.attachNetworkFilters(to: wv)
         context.coordinator.attach(to: wv)
+
 #if os(iOS)
         playbackSession.webView = wv
+#elseif os(macOS)
+        vm.webView = wv
 #endif
         wv.load(url)
         return wv
@@ -180,7 +201,10 @@ struct WebView: Representable {
             onTimeInfo: onTimeInfo,
             iFrameLogs: iFrameLogs,
             videoFrameLogs: videoFrameLogs,
-            navigationLogs: navigationLogs
+            navigationLogs: navigationLogs,
+            memoryInfo: memoryInfo,
+            cpuInfo: cpuInfo,
+            threadInfo: threadInfo
         )
     }
 
@@ -194,6 +218,9 @@ struct WebView: Representable {
         let iFrameLogs: (String) -> Void
         let videoFrameLogs: (String) -> Void
         let navigationLogs: (String) -> Void
+        let memoryInfo: (Double) -> Void
+        let cpuInfo: (Double) -> Void
+        let threadInfo: (Int32) -> Void
         var pid: pid_t?
 
         private var kvoTokens: [NSKeyValueObservation] = []
@@ -212,13 +239,20 @@ struct WebView: Representable {
             onTimeInfo: @escaping (TimeInfo) -> Void,
             iFrameLogs: @escaping (String) -> Void,
             videoFrameLogs: @escaping (String) -> Void,
-            navigationLogs: @escaping (String) -> Void
+            navigationLogs: @escaping (String) -> Void,
+            memoryInfo: @escaping (Double) -> Void,
+            cpuInfo: @escaping (Double) -> Void,
+            threadInfo: @escaping (Int32) -> Void
+
         ) {
             self.vm = vm
             self.onTimeInfo = onTimeInfo
             self.iFrameLogs = iFrameLogs
             self.videoFrameLogs = videoFrameLogs
             self.navigationLogs = navigationLogs
+            self.memoryInfo = memoryInfo
+            self.cpuInfo = cpuInfo
+            self.threadInfo = threadInfo
             super.init()
         }
 
@@ -388,11 +422,15 @@ extension WebView.Coordinator {
                 guard let pid = await pid else { continue }
 
                 let mem = getMemory(for: pid)
-                print("\(pid) Memory: \(mem)GB")
+//                print("\(pid) Memory: \(mem)GB")
+                await memoryInfo(mem)
 
                 let (threadCount, cpu) = getCPUUsage(for: pid)
-                print("CPU: \(String(format: "%.2f", cpu))%")
-                print("Thread Count: \(threadCount)")
+//                print("CPU: \(String(format: "%.2f", cpu))%")
+//                print("Thread Count: \(threadCount)")
+
+                await threadInfo(threadCount)
+                await cpuInfo(cpu)
             }
         }
 #endif
@@ -441,6 +479,9 @@ extension WebView.Coordinator {
         // before SwiftUI dismantles the old one. Only its current owner may
         // remove delegates, message handlers, or the active video styling.
         guard view.navigationDelegate === coordinator else { return }
+        coordinator.perfMonitor?.cancel()
+        view.stopLoading()
+        view.loadHTMLString("", baseURL: nil)
         view.navigationDelegate = nil
         view.uiDelegate = nil
 
@@ -527,18 +568,18 @@ extension WebView.Coordinator: WKScriptMessageHandler {
     ) {
         switch message.name {
         case "videoLogger":
-            guard let dictionary = message.body as? [String: Any] else {
-                print("Couldnt convert message body into dictionary")
-                return
-            }
-            guard let jsonData = try? JSONSerialization.data(withJSONObject: dictionary) else {
-                print("Coudlnt convert dictionary into json data")
-                return
-            }
-
-            if let string = prettyPrintJSON(jsonData) {
-                videoFrameLogs(string)
-            }
+//            guard let dictionary = message.body as? [String: Any] else {
+//                print("Couldnt convert message body into dictionary")
+//                return
+//            }
+//            guard let jsonData = try? JSONSerialization.data(withJSONObject: dictionary) else {
+//                print("Coudlnt convert dictionary into json data")
+//                return
+//            }
+//
+//            if let string = prettyPrintJSON(jsonData) {
+//                videoFrameLogs(string)
+//            }
 
             break
         case "iframeLog":

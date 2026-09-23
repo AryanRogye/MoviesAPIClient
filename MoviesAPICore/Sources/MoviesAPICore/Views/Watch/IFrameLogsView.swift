@@ -10,6 +10,7 @@ import SwiftUI
 struct IFrameLogsView: View {
     @Binding var logs: [String]
     @Binding var videoLogs: [String]
+    @Binding var navigationLogs: [String]
 
     @State private var filter: LogFilter = .all
 
@@ -17,9 +18,10 @@ struct IFrameLogsView: View {
 
     private var displayedLogsAreEmpty: Bool {
         switch filter {
-        case .all: logs.isEmpty && videoLogs.isEmpty
+        case .all: logs.isEmpty && videoLogs.isEmpty && navigationLogs.isEmpty
         case .iframe: logs.isEmpty
         case .video: videoLogs.isEmpty
+        case .navigation: navigationLogs.isEmpty
         }
     }
 
@@ -35,17 +37,24 @@ struct IFrameLogsView: View {
             if displayedLogsAreEmpty {
                 Text("No Logs Yet")
             } else {
-                if filter != .video && !logs.isEmpty {
+                if (filter == .all || filter == .iframe) && !logs.isEmpty {
                     Section("IFrame Logs") {
                         ForEach(Array(logs.reversed()).enumerated(), id: \.offset) { index, log in
-                            IFrameLogRow(number: logs.count - index, log: log)
+                            logLink(number: logs.count - index, log: log, title: "IFrame Log")
                         }
                     }
                 }
-                if filter != .iframe && !videoLogs.isEmpty {
+                if (filter == .all || filter == .video) && !videoLogs.isEmpty {
                     Section("Video Frame Logs") {
                         ForEach(Array(videoLogs.reversed()).enumerated(), id: \.offset) { index, log in
-                            IFrameLogRow(number: videoLogs.count - index, log: log)
+                            logLink(number: videoLogs.count - index, log: log, title: "Video Frame Log")
+                        }
+                    }
+                }
+                if (filter == .all || filter == .navigation) && !navigationLogs.isEmpty {
+                    Section("Navigation Logs") {
+                        ForEach(Array(navigationLogs.reversed()).enumerated(), id: \.offset) { index, log in
+                            logLink(number: navigationLogs.count - index, log: log, title: "Navigation Log")
                         }
                     }
                 }
@@ -67,8 +76,9 @@ struct IFrameLogsView: View {
 
             ToolbarItem(placement: .primaryAction) {
                 Button(role: .destructive) {
-                    if filter != .video { logs.removeAll() }
-                    if filter != .iframe { videoLogs.removeAll() }
+                    if filter == .all || filter == .iframe { logs.removeAll() }
+                    if filter == .all || filter == .video { videoLogs.removeAll() }
+                    if filter == .all || filter == .navigation { navigationLogs.removeAll() }
                 } label: {
                     Image(systemName: "trash")
                 }
@@ -77,10 +87,18 @@ struct IFrameLogsView: View {
             }
         }
     }
+
+    private func logLink(number: Int, log: String, title: String) -> some View {
+        NavigationLink {
+            LogDetailView(title: "\(title) #\(number)", log: log)
+        } label: {
+            IFrameLogRow(number: number, log: log)
+        }
+    }
 }
 
 private enum LogFilter: String, CaseIterable, Identifiable {
-    case all, iframe, video
+    case all, iframe, video, navigation
 
     var id: Self { self }
 
@@ -89,6 +107,7 @@ private enum LogFilter: String, CaseIterable, Identifiable {
         case .all: "All"
         case .iframe: "IFrame"
         case .video: "Video"
+        case .navigation: "Navigation"
         }
     }
 }
@@ -96,11 +115,6 @@ private enum LogFilter: String, CaseIterable, Identifiable {
 private struct IFrameLogRow: View {
     let number: Int
     let log: String
-
-    private var fields: [String: Any]? {
-        guard let data = log.data(using: .utf8) else { return nil }
-        return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -111,13 +125,12 @@ private struct IFrameLogRow: View {
                 Spacer()
             }
 
-            Text(formattedJSON(log))
+            Text(LogFormatting.formattedJSON(log))
                 .font(.callout.monospaced())
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            if let data = fields?["data"] as? String,
-                let decoded = formattedEmbeddedJSON(data)
+            if let decoded = LogFormatting.decodedData(in: log)
             {
                 DisclosureGroup("Decoded data") {
                     Text(decoded)
@@ -131,7 +144,10 @@ private struct IFrameLogRow: View {
         .padding(.vertical, 6)
     }
 
-    private func formattedJSON(_ string: String) -> String {
+}
+
+private enum LogFormatting {
+    static func formattedJSON(_ string: String) -> String {
         guard let data = string.data(using: .utf8),
             let json = try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed)
         else {
@@ -140,7 +156,10 @@ private struct IFrameLogRow: View {
         return prettyPrinted(json) ?? string
     }
 
-    private func formattedEmbeddedJSON(_ string: String) -> String? {
+    static func decodedData(in log: String) -> String? {
+        guard let outerData = log.data(using: .utf8),
+              let fields = (try? JSONSerialization.jsonObject(with: outerData)) as? [String: Any],
+              let string = fields["data"] as? String else { return nil }
         guard let data = string.data(using: .utf8),
             let json = try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed)
         else {
@@ -149,7 +168,7 @@ private struct IFrameLogRow: View {
         return prettyPrinted(json)
     }
 
-    private func prettyPrinted(_ value: Any) -> String? {
+    private static func prettyPrinted(_ value: Any) -> String? {
         if let data = try? JSONSerialization.data(
             withJSONObject: value,
             options: [.prettyPrinted, .sortedKeys, .fragmentsAllowed, .withoutEscapingSlashes]
@@ -157,5 +176,104 @@ private struct IFrameLogRow: View {
             return text
         }
         return nil
+    }
+}
+
+private struct LogDetailView: View {
+    let title: String
+    let log: String
+
+    @State private var query = ""
+    @State private var selectedMatch = 0
+
+    private var content: String {
+        let outer = LogFormatting.formattedJSON(log)
+        guard let decoded = LogFormatting.decodedData(in: log) else { return outer }
+        return outer + "\n\nDecoded data:\n" + decoded
+    }
+
+    private var lines: [String] {
+        content.components(separatedBy: "\n")
+    }
+
+    private var matchingLines: [Int] {
+        guard !query.isEmpty else { return [] }
+        return lines.indices.filter { lines[$0].localizedStandardContains(query) }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                TextField("Find in log", text: $query)
+                    .textFieldStyle(.roundedBorder)
+                    .onChange(of: query) { _, _ in selectedMatch = 0 }
+
+                if !query.isEmpty {
+                    Text(matchingLines.isEmpty ? "No matches" : "\(min(selectedMatch + 1, matchingLines.count)) of \(matchingLines.count) lines")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                    Button { moveMatch(by: -1) } label: {
+                        Image(systemName: "chevron.up")
+                    }
+                    .disabled(matchingLines.isEmpty)
+                    Button { moveMatch(by: 1) } label: {
+                        Image(systemName: "chevron.down")
+                    }
+                    .disabled(matchingLines.isEmpty)
+                }
+            }
+            .padding()
+
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(lines.indices, id: \.self) { index in
+                            highlighted(lines[index])
+                                .font(.callout.monospaced())
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, minHeight: 20, alignment: .leading)
+                                .padding(.horizontal)
+                                .background(currentLine == index ? Color.accentColor.opacity(0.12) : Color.clear)
+                                .id(index)
+                        }
+                    }
+                    .padding(.vertical)
+                }
+                .onChange(of: query) { _, _ in scrollToMatch(proxy) }
+                .onChange(of: selectedMatch) { _, _ in scrollToMatch(proxy) }
+            }
+        }
+        .navigationTitle(title)
+    }
+
+    private var currentLine: Int? {
+        guard matchingLines.indices.contains(selectedMatch) else { return nil }
+        return matchingLines[selectedMatch]
+    }
+
+    private func moveMatch(by offset: Int) {
+        guard !matchingLines.isEmpty else { return }
+        selectedMatch = (selectedMatch + offset + matchingLines.count) % matchingLines.count
+    }
+
+    private func scrollToMatch(_ proxy: ScrollViewProxy) {
+        guard let currentLine else { return }
+        withAnimation { proxy.scrollTo(currentLine, anchor: .center) }
+    }
+
+    private func highlighted(_ line: String) -> Text {
+        guard !query.isEmpty else { return Text(verbatim: line) }
+        var result = Text("")
+        var start = line.startIndex
+        while start < line.endIndex,
+              let range = line.range(of: query, options: [.caseInsensitive, .diacriticInsensitive], range: start..<line.endIndex) {
+            let prefix = Text(verbatim: String(line[start..<range.lowerBound]))
+            let match = Text(verbatim: String(line[range]))
+                .foregroundColor(.orange)
+                .bold()
+            result = Text("\(result)\(prefix)\(match)")
+            start = range.upperBound
+        }
+        return Text("\(result)\(Text(verbatim: String(line[start...])))")
     }
 }

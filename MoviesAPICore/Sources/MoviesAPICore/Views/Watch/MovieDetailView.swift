@@ -100,7 +100,6 @@ public struct MovieDetailView: View {
                         maxWidth: .infinity,
                         maxHeight: .infinity
                     )
-                    .padding(.horizontal, 10)
 #endif
             } else {
                 Color.black
@@ -166,6 +165,9 @@ public struct MovieDetailView: View {
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button {
+#if os(macOS)
+                    webviewModel.stopPlayback()
+#endif
                     if playbackSession.isPlaying(result) {
                         playbackSession.stop()
                     }
@@ -241,6 +243,11 @@ public struct MovieDetailView: View {
             collectionName: $collectionName,
             collectionResultToAdd: $collectionResultToAdd
         ))
+#if os(macOS)
+        .onDisappear {
+            webviewModel.stopPlayback()
+        }
+#endif
     }
 
     private func loadMovie() {

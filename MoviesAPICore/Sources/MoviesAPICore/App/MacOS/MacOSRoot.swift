@@ -10,6 +10,7 @@ import SwiftUI
 
 struct MacOSRoot: View {
 
+    @Bindable var windowContainer: WindowCoordinatorContainer
     @State private var tmdbManager: TMDBManager?
     @State private var blockingService = BlockingService()
     @State private var playbackSession = PlaybackSession()
@@ -69,6 +70,7 @@ struct MacOSRoot: View {
                             }
                         }
                     }
+                    .environment(windowContainer)
                     .environment(tmdbManager)
                     .environment(blockingService)
                     .environment(playbackSession)

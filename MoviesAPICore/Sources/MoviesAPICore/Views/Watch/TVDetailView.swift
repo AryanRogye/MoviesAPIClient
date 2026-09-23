@@ -11,6 +11,9 @@ import WebKit
 
 public struct TVDetailView: View {
 
+#if os(macOS)
+    @Environment(WindowCoordinatorContainer.self) var windowContainer
+#endif
     @Environment(TMDBManager.self) var tmdbManager
     @Environment(PlaybackSession.self) var playbackSession
     @Environment(\.modelContext) var modelContext
@@ -39,6 +42,10 @@ public struct TVDetailView: View {
         self._selectedEpisodeNumber = .init(initialValue: episodeNumber)
     }
 
+#if os(macOS)
+    @State fileprivate var menubarController = TVDetailMenubarController()
+#endif
+
     @State private var error: String?
     @State private var showError: Bool = false
 
@@ -64,6 +71,7 @@ public struct TVDetailView: View {
 
     @State private var iFrameLogs: [String] = []
     @State private var videoFrameLogs: [String] = []
+    @State private var navigationLogs: [String] = []
 
     @State private var showCreateCollection: Bool = false
     @State private var collectionName: String = ""
@@ -90,6 +98,8 @@ public struct TVDetailView: View {
                         addLog(log)
                     } videoFrameLogs: { log in
                         addVideoLog(log)
+                    } navigationLogs: { log in
+                        addNavigationLog(log)
                     }
                     .id(reloadID)
                     .frame(maxWidth: .infinity)
@@ -156,6 +166,10 @@ public struct TVDetailView: View {
             )
         }
         .onDisappear {
+#if os(macOS)
+            webviewModel.stopPlayback()
+            menubarController.removeMenubarItems()
+#endif
             guard let timeInfo else { return }
             updateLastStoppedAt(with: timeInfo)
         }
@@ -167,12 +181,19 @@ public struct TVDetailView: View {
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button {
+#if os(macOS)
+                    webviewModel.stopPlayback()
+#endif
                     if let timeInfo {
                         updateLastStoppedAt(with: timeInfo)
                     }
                     if playbackSession.isPlaying(result) {
                         playbackSession.stop()
                     }
+#if os(macOS)
+                    menubarController.removeMenubarItems()
+#endif
+
                     dismiss()
                 } label: {
                     Image(systemName: "chevron.backward")
@@ -204,12 +225,18 @@ public struct TVDetailView: View {
                         .labelStyle(.titleAndIcon)
                     }
 #endif
+#if os(iOS)
                     NavigationLink {
-                        IFrameLogsView(logs: $iFrameLogs, videoLogs: $videoFrameLogs)
+                        IFrameLogsView(
+                            logs: $iFrameLogs,
+                            videoLogs: $videoFrameLogs,
+                            navigationLogs: $navigationLogs
+                        )
                     } label: {
                         Text("Logs")
                     }
                     .buttonStyle(.plain)
+#endif
 
                     Toggle("Enable Autoplay", isOn: $enableAutoPlay)
 
@@ -297,6 +324,17 @@ public struct TVDetailView: View {
             }
         }
         .task {
+#if os(macOS)
+            menubarController.assignLogs(
+                iFrame: $iFrameLogs,
+                videoFrame: $videoFrameLogs,
+                navigation: $navigationLogs
+            )
+            menubarController.assignWindowContainer(windowContainer)
+            menubarController.attachMenubarItems()
+#endif
+        }
+        .task {
             if let selectedSeasonNumber, let selectedEpisodeNumber {
                 loadSeason(season: selectedSeasonNumber, pickingEpisode: selectedEpisodeNumber)
             }
@@ -313,6 +351,14 @@ public struct TVDetailView: View {
                 self.error = error.localizedDescription
                 self.showError = true
             }
+        }
+    }
+
+    func addNavigationLog(_ log: String) {
+        navigationLogs.append(log)
+
+        if navigationLogs.count > 200 {
+            navigationLogs.removeFirst(navigationLogs.count - 200)
         }
     }
 
@@ -699,6 +745,111 @@ private struct EpisodesView: View {
             .padding(.horizontal)
             .padding(.top, 20)
         }
+    }
+}
+
+
+@MainActor
+private final class TVDetailMenubarController: NSObject {
+
+    private var windowContainer: WindowCoordinatorContainer?
+
+    private var onIFrameLogs: Binding<[String]>?
+    private var onVideoFrameLogs: Binding<[String]>?
+    private var onNavigationLogs: Binding<[String]>?
+
+    private var debugMenuItem: NSMenuItem?
+
+    private let windowID = UUID().uuidString
+
+    override init() {
+        super.init()
+    }
+
+    public func assignLogs(
+        iFrame: Binding<[String]>,
+        videoFrame: Binding<[String]>,
+        navigation: Binding<[String]>
+    ) {
+        onIFrameLogs = iFrame
+        onVideoFrameLogs = videoFrame
+        onNavigationLogs = navigation
+    }
+
+    public func assignWindowContainer(_ windowContainer: WindowCoordinatorContainer) {
+        self.windowContainer = windowContainer
+    }
+
+    @objc private func showLogs() {
+
+        guard let onIFrameLogs else { return }
+        guard let onVideoFrameLogs else { return }
+        guard let onNavigationLogs else { return }
+
+        windowContainer?.windowCoordinator.showWindow(
+            id: windowID,
+            title: "Logs",
+            content: NavigationStack {
+                IFrameLogsView(
+                    logs: onIFrameLogs,
+                    videoLogs: onVideoFrameLogs,
+                    navigationLogs: onNavigationLogs
+                )
+            }
+        )
+    }
+
+    public func attachMenubarItems() {
+        guard debugMenuItem == nil else { return }
+
+        let menuItem = NSMenuItem(
+            title: "Debug",
+            action: nil,
+            keyEquivalent: ""
+        )
+
+        let menu = NSMenu(title: "Debug")
+
+        let logs = NSMenuItem(
+            title: "Logs",
+            action: #selector(showLogs),
+            keyEquivalent: ""
+        )
+
+        logs.target = self
+
+        menu.addItem(logs)
+        menuItem.submenu = menu
+
+        NSApp.mainMenu?.addItem(menuItem)
+
+        debugMenuItem = menuItem
+    }
+
+    public func removeMenubarItems() {
+        guard let debugMenuItem else {
+            print("NO DEBUG MENU ITEM")
+            return
+        }
+
+        guard let mainMenu = NSApp.mainMenu else {
+            print("NO MAIN MENU")
+            return
+        }
+
+        print("BEFORE:", mainMenu.items.map(\.title))
+
+        if let index = mainMenu.items.firstIndex(where: { $0 === debugMenuItem }) {
+            print("FOUND AT INDEX:", index)
+
+            mainMenu.removeItem(at: index)
+
+            print("AFTER:", mainMenu.items.map(\.title))
+        } else {
+            print("STORED ITEM IS NOT IN MAIN MENU")
+        }
+
+        self.debugMenuItem = nil
     }
 }
 
