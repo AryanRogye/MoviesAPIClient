@@ -27,13 +27,13 @@ let package = Package(
             path: "Frameworks/SharedLogic.xcframework"
         ),
         .target(
-            name: "MemoryUsage"
+            name: "ProccesInfo"
         ),
         .target(
             name: "MoviesAPICore",
             dependencies: [
                 "SharedLogic",
-                "MemoryUsage",
+                "ProccesInfo",
                 .product(name: "Defaults", package: "Defaults"),
             ],
             resources: [

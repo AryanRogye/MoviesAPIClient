@@ -16,6 +16,8 @@
 
 uint64_t getMemoryForProcess(pid_t pid);
 
+uint64_t getCPUTimeForProcess(pid_t pid);
+
 #endif
 #endif
 #endif

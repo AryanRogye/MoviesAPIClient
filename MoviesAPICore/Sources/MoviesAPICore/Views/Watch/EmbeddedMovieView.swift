@@ -7,7 +7,7 @@
 
 import SwiftUI
 import WebKit
-import MemoryUsage
+import ProccesInfo
 
 @Observable
 @MainActor
@@ -209,7 +209,7 @@ struct WebView: Representable {
             kvoTokens.removeAll()
             startObservation(with: webView)
             attachWatcher(to: webView)
-            beginMonitoringMemory()
+            beginMonitoringPID()
         }
     }
 }
@@ -274,7 +274,7 @@ extension WebView.Coordinator {
     }
 }
 
-// MARK: - MacOS Memory
+// MARK: - MacOS WebView Performance
 extension WebView.Coordinator {
 
     private func loadPID(for webView: WKWebView) {
@@ -283,18 +283,46 @@ extension WebView.Coordinator {
 #endif
     }
 
-    private func beginMonitoringMemory() {
+    private func beginMonitoringPID() {
 #if os(macOS)
         memoryMonitor?.cancel()
+
+        var lastCPUTime: UInt64 = 0
+
+
         memoryMonitor = Task.detached(priority: .background) { [weak self] in
+
+            func getMemory(for pid: pid_t) -> Double {
+                let mem = getMemoryForProcess(pid)
+                let gb = Double(mem) / 1_000_000_000
+                return gb
+            }
+
+            func getCPUUsage(for pid: pid_t) -> Double {
+                let cpuTime = getCPUTimeForProcess(pid)
+
+                if lastCPUTime != 0 {
+                    let delta = cpuTime - lastCPUTime
+                    let cpuSeconds = Double(delta) / 1_000_000_000
+                    let cpuPercent = (cpuSeconds / 5.0) * 100.0
+                    lastCPUTime = cpuTime
+                    return cpuPercent
+                }
+
+                lastCPUTime = cpuTime
+                return 0;
+            }
+
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(5))
                 guard let self else { return }
                 guard let pid = await pid else { continue }
 
-                let mem = getMemoryForProcess(pid);
-                let gb = Double(mem) / 1_000_000_000
-                print("\(pid) Memory: \(gb)GB")
+                let mem = getMemory(for: pid)
+                print("\(pid) Memory: \(mem)GB")
+
+                let cpu = getCPUUsage(for: pid)
+                print("CPU: \(String(format: "%.2f", cpu))%")
             }
         }
 #endif
