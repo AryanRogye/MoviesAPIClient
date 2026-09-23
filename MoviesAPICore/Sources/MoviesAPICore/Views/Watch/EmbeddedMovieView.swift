@@ -125,18 +125,21 @@ struct WebView: Representable {
 
         let config = WKWebViewConfiguration()
 #if os(iOS)
-        config.allowsInlineMediaPlayback = true
+        config.allowsInlineMediaPlayback = false
         config.allowsPictureInPictureMediaPlayback = true
+        config.preferences.isElementFullscreenEnabled = false
+#else
+        config.preferences.isElementFullscreenEnabled = true
 #endif
         config.preferences.javaScriptCanOpenWindowsAutomatically = false
         config.mediaTypesRequiringUserActionForPlayback = []
         config.websiteDataStore = .default()
-        /// Important to allow to go into fullscreen
-        config.preferences.isElementFullscreenEnabled = true
-
         blockingService.attachPopupBlocking(to: config)
 
         let wv = WKWebView(frame: .zero, configuration: config)
+#if DEBUG
+        wv.isInspectable = true
+#endif
         wv.allowsBackForwardNavigationGestures = false
 
 #if os(iOS)
@@ -298,19 +301,20 @@ extension WebView.Coordinator {
                 return gb
             }
 
-            func getCPUUsage(for pid: pid_t) -> Double {
-                let cpuTime = getCPUTimeForProcess(pid)
+            func getCPUUsage(for pid: pid_t) -> (Int32, Double) {
+                let processThreadInfo = getCPUInfo(pid)
 
+                let cpuTime = processThreadInfo.cpuTime
                 if lastCPUTime != 0 {
                     let delta = cpuTime - lastCPUTime
                     let cpuSeconds = Double(delta) / 1_000_000_000
                     let cpuPercent = (cpuSeconds / 5.0) * 100.0
                     lastCPUTime = cpuTime
-                    return cpuPercent
+                    return (processThreadInfo.count, cpuPercent)
                 }
 
                 lastCPUTime = cpuTime
-                return 0;
+                return (processThreadInfo.count, 0);
             }
 
             while !Task.isCancelled {
@@ -321,8 +325,9 @@ extension WebView.Coordinator {
                 let mem = getMemory(for: pid)
                 print("\(pid) Memory: \(mem)GB")
 
-                let cpu = getCPUUsage(for: pid)
+                let (threadCount, cpu) = getCPUUsage(for: pid)
                 print("CPU: \(String(format: "%.2f", cpu))%")
+                print("Thread Count: \(threadCount)")
             }
         }
 #endif

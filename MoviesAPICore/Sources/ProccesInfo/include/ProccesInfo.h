@@ -14,9 +14,14 @@
 #include "libproc.h"
 #include <unistd.h>
 
-uint64_t getMemoryForProcess(pid_t pid);
+typedef struct {
+    int count;
+    uint64_t cpuTime;
+} ProcessThreadInfo;
 
+uint64_t getMemoryForProcess(pid_t pid);
 uint64_t getCPUTimeForProcess(pid_t pid);
+ProcessThreadInfo getCPUInfo(pid_t pid);
 
 #endif
 #endif
