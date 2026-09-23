@@ -219,7 +219,11 @@ public struct MovieDetailView: View {
 
                 if let movieUrl {
                     Button {
+#if os(macOS)
+                        reloadID = UUID()
+#else
                         playbackSession.webView?.load(movieUrl)
+#endif
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }

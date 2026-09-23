@@ -6,25 +6,45 @@
 //
 
 (() => {
-    window.addEventListener("message", (event) => {
-        let message;
+  window.addEventListener("message", (event) => {
+    let message;
 
-        try {
-            message =
-            typeof event.data === "string"
-            ? JSON.parse(event.data)
-            : event.data;
-        } catch {
-            return;
-        }
+    try {
+      message =
+        typeof event.data === "string"
+        ? JSON.parse(event.data)
+        : event.data;
+    } catch {
+      return;
+    }
 
-        if (
-            message?.type !== "PLAYER_EVENT" ||
-            message?.data?.event !== "timeupdate"
-            ) {
-                return;
-            }
+    if (
+      message?.data?.currentTime !== undefined &&
+      message?.data?.duration !== undefined
+    ) {
+      window.webkit?.messageHandlers?.iframeDebug?.postMessage({
+        currentTime: message.data.currentTime,
+        duration: message.data.duration
+      });
+      return;
+    }
 
-        window.webkit?.messageHandlers?.iframeDebug?.postMessage(message.data);
-    });
+    if (
+      message?.currentTime !== undefined &&
+      message?.duration !== undefined
+    ) {
+      window.webkit?.messageHandlers?.iframeDebug?.postMessage({
+        currentTime: message.currentTime,
+        duration: message.duration
+      });
+      return;
+    }
+
+    if (
+      message?.type === "PLAYER_EVENT" ||
+      message?.event === "timeupdate"
+    ) {
+      window.webkit?.messageHandlers?.iframeDebug?.postMessage(message.data);
+    }
+  });
 })();

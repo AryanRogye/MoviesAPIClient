@@ -68,6 +68,8 @@ public struct TVDetailView: View {
     @State private var collectionName: String = ""
     @State private var collectionResultToAdd: KTSearchResult?
 
+    @State private var historyAppliedTo: History?
+
     @State var webviewModel: EmbeddedMovieViewModel = .init()
 
     public var body: some View {
@@ -148,6 +150,10 @@ public struct TVDetailView: View {
                 message: Text("\(error, default: "Unknown Error")")
             )
         }
+        .onDisappear {
+            guard let timeInfo else { return }
+            updateLastStoppedAt(with: timeInfo)
+        }
         .modifier(CreateCollectionViewModifier(
             showCreateCollection: $showCreateCollection,
             collectionName: $collectionName,
@@ -156,6 +162,9 @@ public struct TVDetailView: View {
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button {
+                    if let timeInfo {
+                        updateLastStoppedAt(with: timeInfo)
+                    }
                     if playbackSession.isPlaying(result) {
                         playbackSession.stop()
                     }
@@ -170,6 +179,12 @@ public struct TVDetailView: View {
 #endif
 
             ToolbarItemGroup(placement: .primaryAction) {
+#if DEBUG
+                if let timeInfo {
+                    Image(systemName: "checkmark")
+                        .tint(.yellow)
+                }
+#endif
                 Menu {
 #if os(macOS)
                     Button("Freeze Proccess") { webviewModel.freezeProcess() }
@@ -209,7 +224,8 @@ public struct TVDetailView: View {
                 Menu {
                     ForEach(KTDisplayServer.entries, id: \.self) { server in
                         Button {
-                            displayServer = server
+                            self.displayServer = server
+                            self.timeInfo = nil
                         } label: {
                             if displayServer == server {
                                 Label(server.rawValue, systemImage: "checkmark")
@@ -226,7 +242,11 @@ public struct TVDetailView: View {
 
                 if let tvUrl {
                     Button {
+#if os(macOS)
+                        reloadID = UUID()
+#else
                         playbackSession.webView?.load(tvUrl)
+#endif
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }
@@ -343,6 +363,12 @@ public struct TVDetailView: View {
         }
     }
 
+    private func updateLastStoppedAt(with timeInfo: TimeInfo) {
+        guard let historyAppliedTo else { return }
+        historyAppliedTo.lastStoppedAt = timeInfo.currentTime
+        try? modelContext.save()
+    }
+
     private func loadTVShow(season: Int, episode: Int) {
         let tmdb_show_id = result.id
 
@@ -359,6 +385,7 @@ public struct TVDetailView: View {
                 $0.episode == episode
             }) {
                 history.watchedAt = .now
+                self.historyAppliedTo = history
             } else {
                 let history = History(
                     resultId: Int(result.id),
@@ -368,6 +395,7 @@ public struct TVDetailView: View {
                     episode: episode,
                     posterPath: result.posterPath
                 )
+                self.historyAppliedTo = history
 
                 modelContext.insert(history)
             }

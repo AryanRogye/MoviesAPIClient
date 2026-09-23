@@ -38,7 +38,7 @@ final class EmbeddedMovieViewModel {
     }
 }
 
-struct TimeInfo: Decodable {
+struct TimeInfo: Codable {
     var currentTime: Double
     var duration: Double
 }
@@ -506,7 +506,10 @@ extension WebView.Coordinator: WKScriptMessageHandler {
                 return
             }
 
-            iFrameLogs(String(data: jsonData, encoding: .utf8) ?? "Unable To Decode message.body")
+            if let string = prettyPrintJSON(jsonData) {
+//                print(string)
+                iFrameLogs(string)
+            }
 
         case "iframeDebug":
 
@@ -530,5 +533,32 @@ extension WebView.Coordinator: WKScriptMessageHandler {
         default:
             break
         }
+    }
+
+    func prettyPrintJSON(_ jsonData: Data) -> String? {
+        guard
+            var outer = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any]
+                else {
+            return nil
+        }
+
+        // Parse nested JSON string
+        if let dataString = outer["data"] as? String,
+           let data = dataString.data(using: .utf8),
+           let inner = try? JSONSerialization.jsonObject(with: data) {
+            outer["data"] = inner
+        }
+
+        guard
+            let prettyData = try? JSONSerialization.data(
+                withJSONObject: outer,
+                options: [.prettyPrinted, .sortedKeys]
+            ),
+            let pretty = String(data: prettyData, encoding: .utf8)
+                else {
+            return nil
+        }
+
+        return pretty
     }
 }

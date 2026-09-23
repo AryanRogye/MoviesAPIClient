@@ -10,6 +10,14 @@ import SwiftUI
 struct HistoryRow: View {
     let history: History
 
+    private let durationFormatter: DateComponentsFormatter = {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.hour, .minute, .second]
+        formatter.unitsStyle = .abbreviated
+        formatter.zeroFormattingBehavior = .dropAll
+        return formatter
+    }()
+
     var body: some View {
         HStack(spacing: 14) {
             artwork
@@ -47,6 +55,12 @@ struct HistoryRow: View {
                 }
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+
+                if let lastStoppedAt = history.lastStoppedAt {
+                    Text(durationFormatter.string(from: lastStoppedAt) ?? "")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Spacer(minLength: 8)

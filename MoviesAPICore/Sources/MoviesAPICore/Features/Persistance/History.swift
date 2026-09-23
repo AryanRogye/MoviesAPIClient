@@ -24,6 +24,7 @@ public class History {
     public var episode: Int?
     public var watchedAt: Date
     public var posterPath: String?
+    public var lastStoppedAt: Double?
 
     public init(
         id: UUID = UUID(),
@@ -33,7 +34,8 @@ public class History {
         season: Int? = nil,
         episode: Int? = nil,
         posterPath: String? = nil,
-        watchedAt: Date = .now
+        watchedAt: Date = .now,
+        lastStoppedAt: Double? = nil
     ) {
         self.id = id
         self.resultId = resultId
@@ -43,5 +45,6 @@ public class History {
         self.episode = episode
         self.posterPath = posterPath
         self.watchedAt = watchedAt
+        self.lastStoppedAt = lastStoppedAt
     }
 }
