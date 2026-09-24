@@ -47,6 +47,9 @@ let package = Package(
             swiftSettings: [
                 .defaultIsolation(nil)
             ],
+            linkerSettings: [
+                .linkedLibrary("sqlite3", .when(platforms: [.macOS]))
+            ],
         ),
     ],
     swiftLanguageModes: [.v5],
