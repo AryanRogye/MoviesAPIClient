@@ -18,6 +18,7 @@ public struct TVDetailView: View {
     @Environment(PlaybackSession.self) var playbackSession
     @Environment(\.modelContext) var modelContext
     @Environment(\.dismiss) var dismiss
+    @Environment(\.scenePhase) private var scenePhase
 
     @Query var history: [History]
     @Binding var displayServer: KTDisplayServer
@@ -66,6 +67,7 @@ public struct TVDetailView: View {
 
     @AppStorage("EnableAutoPlay") private var enableAutoPlay: Bool = false
     @State private var timeInfo: TimeInfo? = nil
+    @State private var lastProgressSaveAt: Date?
     @State private var timeInfoTask: Task<Void, Never>?
     @State private var waitingForAutoPlayLoad = false
 
@@ -85,9 +87,12 @@ public struct TVDetailView: View {
         GeometryReader { geometry in
             ScrollView {
                 if let tvUrl {
+                    let playerID = reloadID
+                    let seasonNumber = selectedSeasonNumber
+                    let episodeNumber = selectedEpisode.map { Int($0.episodeNumber) }
 #if os(iOS)
                     EmbeddedMovieView(url: tvUrl, vm: webviewModel) { timeInfo in
-                        self.timeInfo = timeInfo
+                        receiveTimeInfo(timeInfo, playerID: playerID, season: seasonNumber, episode: episodeNumber)
 
                         if waitingForAutoPlayLoad,
                            timeInfo.currentTime < 10,
@@ -107,7 +112,7 @@ public struct TVDetailView: View {
                     .padding(.horizontal, 10)
 #elseif os(macOS)
                     EmbeddedMovieView(url: tvUrl, vm: webviewModel) { timeInfo in
-                        self.timeInfo = timeInfo
+                        receiveTimeInfo(timeInfo, playerID: playerID, season: seasonNumber, episode: episodeNumber)
 
                         if waitingForAutoPlayLoad,
                            timeInfo.currentTime < 10,
@@ -170,8 +175,7 @@ public struct TVDetailView: View {
             webviewModel.stopPlayback()
             menubarController.removeMenubarItems()
 #endif
-            guard let timeInfo else { return }
-            updateLastStoppedAt(with: timeInfo)
+            saveCurrentPlaybackPosition()
         }
         .modifier(CreateCollectionViewModifier(
             showCreateCollection: $showCreateCollection,
@@ -184,9 +188,7 @@ public struct TVDetailView: View {
 #if os(macOS)
                     webviewModel.stopPlayback()
 #endif
-                    if let timeInfo {
-                        updateLastStoppedAt(with: timeInfo)
-                    }
+                    saveCurrentPlaybackPosition()
                     if playbackSession.isPlaying(result) {
                         playbackSession.stop()
                     }
@@ -257,7 +259,6 @@ public struct TVDetailView: View {
                     ForEach(KTDisplayServer.entries, id: \.self) { server in
                         Button {
                             self.displayServer = server
-                            self.timeInfo = nil
                         } label: {
                             if displayServer == server {
                                 Label(server.rawValue, systemImage: "checkmark")
@@ -274,6 +275,9 @@ public struct TVDetailView: View {
 
                 if let tvUrl {
                     Button {
+                        saveCurrentPlaybackPosition()
+                        timeInfo = nil
+                        lastProgressSaveAt = nil
 #if os(macOS)
                         reloadID = UUID()
 #else
@@ -289,9 +293,16 @@ public struct TVDetailView: View {
             timeInfoTask?.cancel()
             timeInfoTask = nil
         }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase != .active {
+                saveCurrentPlaybackPosition()
+            }
+        }
         /// If we pick a season number, we must clear out any existing values
         .onChange(of: selectedSeasonNumber) { _, newValue in
             if let newValue {
+                saveCurrentPlaybackPosition()
+                clearPlaybackPosition()
                 seasonInfo = nil
                 tvUrl = nil
                 selectedEpisode = nil
@@ -302,6 +313,8 @@ public struct TVDetailView: View {
         /// If we pick a episode number, we clear out any web values so the view is clear
         .onChange(of: selectedEpisode) { _, newValue in
             if let newValue, let selectedSeasonNumber {
+                saveCurrentPlaybackPosition()
+                clearPlaybackPosition()
                 tvUrl = nil
                 reloadID = UUID()
                 loadTVShow(season: selectedSeasonNumber, episode: Int(newValue.episodeNumber))
@@ -310,6 +323,8 @@ public struct TVDetailView: View {
         /// If we change a server, we must reload
         .onChange(of: displayServer) {
             if let selectedSeasonNumber, let selectedEpisode {
+                saveCurrentPlaybackPosition()
+                clearPlaybackPosition()
                 self.tvUrl = nil
                 reloadID = UUID()
                 loadTVShow(season: selectedSeasonNumber, episode: Int(selectedEpisode.episodeNumber))
@@ -333,6 +348,14 @@ public struct TVDetailView: View {
             menubarController.assignWindowContainer(windowContainer)
             menubarController.attachMenubarItems()
 #endif
+        }
+        .task {
+            if tvUrl != nil,
+               historyAppliedTo == nil,
+               let selectedSeasonNumber,
+               let selectedEpisode {
+                attachHistory(season: selectedSeasonNumber, episode: Int(selectedEpisode.episodeNumber))
+            }
         }
         .task {
             if let selectedSeasonNumber, let selectedEpisodeNumber {
@@ -415,17 +438,65 @@ public struct TVDetailView: View {
 
                 Task { @MainActor in
                     self.waitingForAutoPlayLoad = true
-                    self.timeInfo = nil
                     self.selectedEpisode = seasonInfo.episodes[nextIndex]
                 }
             }
         }
     }
 
+    private func receiveTimeInfo(_ info: TimeInfo, playerID: UUID, season: Int?, episode: Int?) {
+        guard playerID == reloadID,
+              let historyAppliedTo,
+              historyAppliedTo.season == season,
+              historyAppliedTo.episode == episode else { return }
+
+        timeInfo = info
+        let now = Date.now
+        if info.currentTime > 0,
+           lastProgressSaveAt.map({ now.timeIntervalSince($0) >= 10 }) ?? true {
+            updateLastStoppedAt(with: info)
+            lastProgressSaveAt = now
+        }
+    }
+
+    private func saveCurrentPlaybackPosition() {
+        guard let timeInfo else { return }
+        updateLastStoppedAt(with: timeInfo)
+    }
+
+    private func clearPlaybackPosition() {
+        timeInfo = nil
+        lastProgressSaveAt = nil
+        historyAppliedTo = nil
+    }
+
     private func updateLastStoppedAt(with timeInfo: TimeInfo) {
         guard let historyAppliedTo else { return }
         historyAppliedTo.lastStoppedAt = timeInfo.currentTime
         try? modelContext.save()
+    }
+
+    private func attachHistory(season: Int, episode: Int) {
+        if let history = history.first(where: {
+            $0.resultId == Int(result.id) &&
+            $0.mediaType == .episode &&
+            $0.season == season &&
+            $0.episode == episode
+        }) {
+            history.watchedAt = .now
+            historyAppliedTo = history
+        } else {
+            let history = History(
+                resultId: Int(result.id),
+                name: result.name ?? result.title ?? "",
+                mediaType: .episode,
+                season: season,
+                episode: episode,
+                posterPath: result.posterPath
+            )
+            historyAppliedTo = history
+            modelContext.insert(history)
+        }
     }
 
     private func loadTVShow(season: Int, episode: Int) {
@@ -437,27 +508,7 @@ public struct TVDetailView: View {
                 throw DisplayServerError.cantConstructURL
             }
 
-            if let history = history.first(where: {
-                $0.resultId == Int(result.id) &&
-                $0.mediaType == .episode &&
-                $0.season == season &&
-                $0.episode == episode
-            }) {
-                history.watchedAt = .now
-                self.historyAppliedTo = history
-            } else {
-                let history = History(
-                    resultId: Int(result.id),
-                    name: result.name ?? result.title ?? "",
-                    mediaType: .episode,
-                    season: season,
-                    episode: episode,
-                    posterPath: result.posterPath
-                )
-                self.historyAppliedTo = history
-
-                modelContext.insert(history)
-            }
+            attachHistory(season: season, episode: episode)
 
             self.startPlaybackSession(with: url, season: season)
             self.tvUrl = url

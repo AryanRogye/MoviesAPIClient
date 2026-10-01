@@ -264,6 +264,8 @@ struct WebView: Representable {
             attachWatcher(to: webView)
             beginMonitoringPID()
 
+//            findProcessMethods(webView)
+
 #if os(macOS)
             vm.freezeProcess = { [weak self] in
                 guard let self else { return }
