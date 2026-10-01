@@ -468,13 +468,16 @@ extension WebView.Coordinator {
 }
 
 // MARK: - Dismantle
-extension WebView.Coordinator {
+extension WebView {
+#if os(macOS)
     static func dismantleNSView(_ nsView: WKWebView, coordinator: WebView.Coordinator) {
         Self.dismantleView(nsView, coordinator: coordinator)
     }
+#elseif os(iOS)
     static func dismantleUIView(_ uiView: WKWebView, coordinator: WebView.Coordinator) {
         Self.dismantleView(uiView, coordinator: coordinator)
     }
+#endif
 
     private static func dismantleView(_ view: WKWebView, coordinator: WebView.Coordinator) {
         // Split changes can mount a new wrapper around the same WKWebView
@@ -498,6 +501,17 @@ extension WebView.Coordinator {
 // MARK: - Scripting
 extension WebView.Coordinator: WKScriptMessageHandler {
 
+    private func addUserScriptIfNeeded(_ script: WKUserScript, to controller: WKUserContentController) {
+        // Reused WebViews retain their scripts. Rebind message handlers below,
+        // but install each watcher only once without removing popup scripts.
+        guard !controller.userScripts.contains(where: {
+            $0.source == script.source &&
+            $0.injectionTime == script.injectionTime &&
+            $0.isForMainFrameOnly == script.isForMainFrameOnly
+        }) else { return }
+        controller.addUserScript(script)
+    }
+
     internal func attachWatcher(to webView: WKWebView) {
         guard let monitorUrl = Bundle.module.url(
             forResource: "monitorIFrame",
@@ -516,7 +530,7 @@ extension WebView.Coordinator: WKScriptMessageHandler {
             injectionTime: .atDocumentStart,
             forMainFrameOnly: false
         )
-        webView.configuration.userContentController.addUserScript(monitorScript)
+        addUserScriptIfNeeded(monitorScript, to: webView.configuration.userContentController)
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "iframeDebug")
         webView.configuration.userContentController.add(self, name: "iframeDebug")
 
@@ -539,7 +553,7 @@ extension WebView.Coordinator: WKScriptMessageHandler {
             forMainFrameOnly: false
         )
 
-        webView.configuration.userContentController.addUserScript(loggerScript)
+        addUserScriptIfNeeded(loggerScript, to: webView.configuration.userContentController)
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "iframeLog")
         webView.configuration.userContentController.add(self, name: "iframeLog")
 
@@ -561,7 +575,7 @@ extension WebView.Coordinator: WKScriptMessageHandler {
             forMainFrameOnly: false
         )
 
-        webView.configuration.userContentController.addUserScript(videoLoggerScript)
+        addUserScriptIfNeeded(videoLoggerScript, to: webView.configuration.userContentController)
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoLogger")
         webView.configuration.userContentController.add(self, name: "videoLogger")
     }
