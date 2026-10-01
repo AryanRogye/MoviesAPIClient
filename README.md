@@ -1,6 +1,6 @@
 # MoviesAPIClient
 
-MoviesAPIClient is a personal movie and TV discovery client with native SwiftUI and Fire TV interfaces. Both clients use the same Kotlin Multiplatform models, TMDB networking, and display-server URL logic.
+MoviesAPIClient is a personal movie and TV discovery client with native SwiftUI and Fire TV interfaces, plus a standalone LG webOS TV app. The Apple and Android clients use the same Kotlin Multiplatform models, TMDB networking, and display-server URL logic. The LG app implements the corresponding behavior in JavaScript.
 
 ## Screenshots
 
@@ -31,6 +31,7 @@ Captured on a Fire TV, showing discovery and movie details.
 - Server selection persisted per device
 - Native Fire TV Compose UI with D-pad focus, a WebView cursor, reload controls, and fullscreen playback
 - Android request and popup filtering sourced from the existing shared blocking-rule lists
+- LG webOS TV discovery, search, favorites, collections, history, and embedded playback; see [LGTVScratch/README.md](LGTVScratch/README.md) for setup and platform limits
 
 Playback availability depends on the selected third-party server.
 
@@ -47,6 +48,7 @@ This product uses the [TMDB API](https://www.themoviedb.org/) but is not endorse
 | `MoviesAPIClient/` | SwiftUI app for Apple platforms |
 | `MoviesShared/sharedLogic/` | Kotlin Multiplatform models, TMDB client, and display-server behavior |
 | `MoviesShared/androidApp/` | Native Jetpack Compose Fire TV app and Android WebView implementation |
+| `LGTVScratch/` | Standalone LG webOS TV app; see its README for setup and platform limits |
 
 ## Configure TMDB
 

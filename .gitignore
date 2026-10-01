@@ -24,9 +24,13 @@ fastlane/test_output/
 
 # Secrets and local configuration
 MoviesAPIClient/Config.xcconfig
+LGTVScratch/config.local.js
 *.xcconfig.local
 *.env
 .env.*
+
+# webOS packages may contain config.local.js credentials
+*.ipk
 
 # macOS
 .DS_Store

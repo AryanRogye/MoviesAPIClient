@@ -1,0 +1,11 @@
+{
+  "id": "com.aryanrogye.moviesapi.lgtv",
+  "version": "0.1.2",
+  "vendor": "Aryan Rogye",
+  "type": "web",
+  "main": "index.html",
+  "disableBackHistoryAPI": true,
+  "title": "Movies",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png"
+}
