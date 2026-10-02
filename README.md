@@ -1,6 +1,6 @@
-# MoviesAPIClient
+# ComfyCinema
 
-MoviesAPIClient is a personal movie and TV discovery client with native SwiftUI and Fire TV interfaces, plus a standalone LG webOS TV app. The Apple and Android clients use the same Kotlin Multiplatform models, TMDB networking, and display-server URL logic. The LG app implements the corresponding behavior in JavaScript.
+ComfyCinema is a personal movie and TV discovery client with native SwiftUI and Fire TV interfaces, plus a standalone LG webOS TV app. The Apple and Android clients use the same Kotlin Multiplatform models, TMDB networking, and display-server URL logic. The LG app implements the corresponding behavior in JavaScript.
 
 ## Screenshots
 

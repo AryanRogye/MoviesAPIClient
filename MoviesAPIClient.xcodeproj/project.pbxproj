@@ -12,7 +12,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		9B6EBD8C3058AC940058478C /* MoviesAPIClient.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MoviesAPIClient.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9B6EBD8C3058AC940058478C /* ComfyCinema.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ComfyCinema.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9B8E2D613070379400190F1C /* MoviesAPIClientIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = MoviesAPIClientIcon.icon; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -59,7 +59,7 @@
 		9B6EBD8D3058AC940058478C /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				9B6EBD8C3058AC940058478C /* MoviesAPIClient.app */,
+				9B6EBD8C3058AC940058478C /* ComfyCinema.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -84,8 +84,8 @@
 			packageProductDependencies = (
 				9BE82335305CA83B003801A2 /* MoviesAPICore */,
 			);
-			productName = MoviesAPIClient;
-			productReference = 9B6EBD8C3058AC940058478C /* MoviesAPIClient.app */;
+			productName = ComfyCinema;
+			productReference = 9B6EBD8C3058AC940058478C /* ComfyCinema.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -277,6 +277,7 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MoviesAPIClient/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ComfyCinema;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -294,7 +295,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.aryanrogye.MoviesAPIClient;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = ComfyCinema;
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -323,6 +324,7 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MoviesAPIClient/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ComfyCinema;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -340,7 +342,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.aryanrogye.MoviesAPIClient;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = ComfyCinema;
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;

@@ -74,7 +74,7 @@ class AppCoordinator {
 
         let window = windowContainer.windowCoordinator.showWindow(
             id: appID,
-            title: "MoviesAPIClient",
+            title: "ComfyCinema",
             content: MacOSRoot(windowContainer: windowContainer)
                 .modelContainer(modelContainer)
                 .preferredColorScheme(.dark),

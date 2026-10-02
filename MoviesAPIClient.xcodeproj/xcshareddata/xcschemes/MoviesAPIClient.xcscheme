@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "9B6EBD8B3058AC940058478C"
-               BuildableName = "MoviesAPIClient.app"
+               BuildableName = "ComfyCinema.app"
                ReferencedContainer = "container:MoviesAPIClient.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -67,7 +67,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "9B6EBD8B3058AC940058478C"
-            BuildableName = "MoviesAPIClient.app"
+            BuildableName = "ComfyCinema.app"
             ReferencedContainer = "container:MoviesAPIClient.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -83,7 +83,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "9B6EBD8B3058AC940058478C"
-            BuildableName = "MoviesAPIClient.app"
+            BuildableName = "ComfyCinema.app"
             ReferencedContainer = "container:MoviesAPIClient.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
