@@ -6,8 +6,8 @@ import PackageDescription
 let package = Package(
     name: "MoviesAPICore",
     platforms: [
-        .iOS(.v27),
-        .macOS(.v27),
+        .iOS("26.1"),
+        .macOS(.v26),
     ],
     products: [
         .library(

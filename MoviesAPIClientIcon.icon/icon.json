@@ -1,0 +1,67 @@
+{
+  "features" : [
+    "refractivity",
+    "specular-location"
+  ],
+  "fill-specializations" : [
+    {
+      "value" : {
+        "linear-gradient" : [
+          "srgb:1.00000,0.79737,0.00000,1.00000",
+          "display-p3:0.63172,0.42653,0.24862,1.00000"
+        ]
+      }
+    },
+    {
+      "appearance" : "dark",
+      "value" : {
+        "linear-gradient" : [
+          "srgb:1.00000,0.79737,0.00000,1.00000",
+          "display-p3:0.63172,0.42653,0.24862,1.00000"
+        ]
+      }
+    }
+  ],
+  "groups" : [
+    {
+      "blend-mode" : "normal",
+      "blur-material" : null,
+      "layers" : [
+        {
+          "blend-mode" : "normal",
+          "fill" : "automatic",
+          "glass" : true,
+          "image-name" : "VideoPlayer.svg",
+          "name" : "VideoPlayer",
+          "position" : {
+            "scale" : 1.6,
+            "translation-in-points" : [
+              -57,
+              11
+            ]
+          }
+        }
+      ],
+      "refractivity" : {
+        "depth" : 0.327890625,
+        "enabled" : true,
+        "strength" : 1
+      },
+      "shadow" : {
+        "kind" : "layer-color",
+        "opacity" : 0.5
+      },
+      "specular" : "outside",
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.51
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

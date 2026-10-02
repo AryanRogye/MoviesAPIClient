@@ -21,6 +21,7 @@ public struct TVDetailView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @Query var history: [History]
+    @AppStorage("PreferStandardMediaSource") private var preferStandardMediaSource = false
     @Binding var displayServer: KTDisplayServer
     let result: KTSearchResult
 
@@ -214,6 +215,9 @@ public struct TVDetailView: View {
                 }
 #endif
                 Menu {
+                    Toggle("Playback Compatibility", isOn: $preferStandardMediaSource)
+                    Text("Changing this reloads the player.")
+                    Divider()
 #if os(macOS)
                     Button("Freeze Proccess") { webviewModel.freezeProcess() }
                     Button("UnFreeze Proccess") { webviewModel.unfreezeProcess() }
